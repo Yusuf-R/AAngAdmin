@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="420" viewBox="0 0 120 120">
+    <defs>
+        <!-- Central Orb Gradient: Electric Blue Core -->
+        <linearGradient id="azboalCore" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#2563EB" />
+            <stop offset="50%" stop-color="#1D4ED8" />
+            <stop offset="100%" stop-color="#1E40AF" />
+        </linearGradient>
+
+        <!-- Pickup Ribbon: Vibrant Orange -->
+        <linearGradient id="azboalTrail" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#EA580C" />
+            <stop offset="100%" stop-color="#C2410C" />
+        </linearGradient>
+
+        <!-- Transit Ribbon: Deep Teal -->
+        <linearGradient id="azboalCharcoal" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#0F766E" />
+            <stop offset="100%" stop-color="#115E59" />
+        </linearGradient>
+
+        <!-- Gold Glow for Edge Highlights -->
+        <linearGradient id="goldGlow" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#FBBF24" stop-opacity="0.7" />
+            <stop offset="100%" stop-color="#D97706" stop-opacity="0" />
+        </linearGradient>
+
+        <!-- Enhanced Outer Glow Filter -->
+        <filter id="enhancedGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="blur" />
+            <feFlood flood-color="#F59E0B" flood-opacity="0.4" result="glowColor" />
+            <feComposite in="glowColor" in2="blur" operator="in" result="softGlow" />
+            <feMerge>
+                <feMergeNode in="softGlow" />
+                <feMergeNode in="SourceGraphic" />
+            </feMerge>
+        </filter>
+
+        <!-- Shadow for better contrast on light backgrounds -->
+        <filter id="logoShadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="blur" />
+            <feOffset in="blur" dx="1" dy="1" result="offsetBlur" />
+            <feFlood flood-color="#000000" flood-opacity="0.2" result="offsetColor" />
+            <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="shadow" />
+            <feMerge>
+                <feMergeNode in="shadow" />
+                <feMergeNode in="SourceGraphic" />
+            </feMerge>
+        </filter>
+    </defs>
+
+    <!-- Apply shadow filter to entire logo for better contrast -->
+    <g filter="url(#logoShadow)">
+
+        <!-- Background subtle energy ring — now with better contrast -->
+        <circle cx="60" cy="60" r="52" fill="none" stroke="#4B5563" stroke-width="2" opacity="0.5" />
+
+        <!-- Twisting Ribbon 1 (Pickup) — Vibrant Orange -->
+        <path d="M30 85 C35 55, 70 45, 85 60 C95 75, 85 95, 60 95 C50 95, 40 90, 35 85 Z"
+              fill="url(#azboalTrail)" opacity="0.95" filter="url(#enhancedGlow)" />
+
+        <!-- Twisting Ribbon 2 (Transit) — Deep Teal -->
+        <path d="M90 35 C85 65, 50 75, 35 60 C25 45, 35 25, 60 25 C70 25, 80 30, 85 35 Z"
+              fill="url(#azboalCharcoal)" opacity="0.9" filter="url(#enhancedGlow)" />
+
+        <!-- Central Singularity Orb (The Package) — Electric Blue -->
+        <circle cx="60" cy="60" r="12" fill="url(#azboalCore)" filter="url(#enhancedGlow)" />
+
+        <!-- Motion burst lines — Bright White for maximum contrast -->
+        <g stroke="#FFFFFF" stroke-width="1.8" opacity="0.9">
+            <line x1="60" y1="30" x2="60" y2="20" />
+            <line x1="90" y1="60" x2="100" y2="60" />
+            <line x1="60" y1="90" x2="60" y2="100" />
+            <line x1="30" y1="60" x2="20" y2="60" />
+            <!-- Additional diagonal lines for more dynamic feel -->
+            <line x1="45" y1="45" x2="38" y2="38" />
+            <line x1="75" y1="75" x2="82" y2="82" />
+            <line x1="75" y1="45" x2="82" y2="38" />
+            <line x1="45" y1="75" x2="38" y2="82" />
+        </g>
+
+        <!-- Gold inner glow on orb for warmth and dimension -->
+        <circle cx="60" cy="60" r="10" fill="url(#goldGlow)" opacity="0.7" />
+
+    </g>
+</svg>
