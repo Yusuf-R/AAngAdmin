@@ -20,23 +20,24 @@ export default function RootLayout({children}) {
     return (
         <html lang="en" suppressHydrationWarning>
         <body className={`${poppins.variable} font-sans antialiased`} suppressHydrationWarning>
-            <ReactQueryProvider>
-                <Toaster
-                    richColors
-                    duration={4000}
-                    position="top-right"
-                    reverseOrder={false}
-                    closeOnClick
-                    expand={true}
-                />
-                <ThemeProvider
-                    attribute="class"
-                    defaultTheme="system"
-                    enableSystem
-                    disableTransitionOnChange
-                />
+        <ReactQueryProvider>
+            <Toaster
+                richColors
+                duration={4000}
+                position="top-right"
+                reverseOrder={false}
+                closeOnClick
+                expand={true}
+            />
+            <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange
+            >
                 {children}
-            </ReactQueryProvider>
+            </ThemeProvider>
+        </ReactQueryProvider>
         </body>
         </html>
     );

@@ -1,8 +1,15 @@
-function AdminDashboard () {
+import DashboardAnalytics from "./DashboardAnalytics";
+import OrderTracking from "@/components/Admin/Dashboard/OrderTracking";
+import UserSection from "@/components/Admin/Dashboard/UserSection";
+
+function AdminDashboard() {
+
     return (
         <>
-            <div>
-                <h3 className={"text-2xl text-cyan-300 text-center"}>Welcome to Admin Dashboard</h3>
+            <div className="min-h-screen bg-background p-8 space-y-8">
+                <DashboardAnalytics/>
+                <OrderTracking/>
+                <UserSection/>
             </div>
         </>
     )

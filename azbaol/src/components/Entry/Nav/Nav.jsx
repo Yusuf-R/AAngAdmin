@@ -16,6 +16,7 @@ import {
     NavigationMenuList,
 } from '@/components/ui/navigation-menu';
 import { GradientText } from "@/components/ui/shadcn-io/gradient-text";
+import {ModeToggle} from "@/components/ModeToggle";
 
 /* --- Default inline SVG logo (fallback) --- */
 function DefaultLogo(props) {
@@ -188,6 +189,7 @@ export default function Nav({
 
                 {/* RIGHT: actions */}
                 <div className="hidden md:flex items-center justify-end gap-3">
+                    <ModeToggle/>
                     <Link href={signInHref}>
                         <Button variant="ghost" size="sm"
                                 className="bg-blue-500 text-white text-sm font-medium hover:bg-accent hover:text-amber-600">
