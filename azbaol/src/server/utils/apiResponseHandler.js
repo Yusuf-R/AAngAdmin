@@ -19,6 +19,20 @@ export class ApiResponseHandler {
             );
         }
 
+        if (error.message.includes("Missing required fields")) {
+            return NextResponse.json(
+                { error: "Missing required fields" },
+                { status: 400 }
+            );
+        }
+
+        if (error.message.includes("User already exists")) {
+            return NextResponse.json(
+                { error: "User already exists" },
+                { status: 409 }
+            );
+        }
+
         // Generic server error
         return NextResponse.json(
             { error: "Internal Server Error" },

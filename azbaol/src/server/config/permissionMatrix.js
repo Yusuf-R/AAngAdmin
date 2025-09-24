@@ -1,10 +1,10 @@
 // Centralized permission configuration
 export const PERMISSION_MATRIX = {
     super_admin: {
-        create: ["profile", "orders", "payment", "security", "user", "driver", "settings"],
-        read: ["profile", "orders", "payment", "security", "user", "driver", "settings", "analytics", "reports"],
-        update: ["profile", "orders", "payment", "security", "user", "driver", "settings"],
-        delete: ["profile", "orders", "payment", "security", "user", "driver"],
+        create: ["profile", "orders", "payment", "security", "user", "client", "driver", "settings"],
+        read: ["profile", "orders", "payment", "security", "user", "client", "driver", "settings", "analytics", "reports"],
+        update: ["profile", "orders", "payment", "security", "user", "client", "driver", "settings"],
+        delete: ["profile", "orders", "payment", "security", "client","user", "driver"],
         manage: ["roles", "permissions", "system_settings"]
     },
 

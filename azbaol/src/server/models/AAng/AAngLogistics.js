@@ -179,8 +179,8 @@ const DriverSchema = new Schema({
 
     // Vehicle & Equipment Details
     vehicleDetails: {
-        type: {type: String, enum: ['bicycle', 'motorcycle', 'tricycle', 'van', 'truck', 'car'], required: true},
-        plateNumber: {type: String, required: true},
+        type: {type: String, enum: ['bicycle', 'motorcycle', 'tricycle', 'van', 'truck', 'car']},
+        plateNumber: {type: String},
         model: String,
         year: {type: Number, min: 1990, max: new Date().getFullYear() + 2},
         color: String,

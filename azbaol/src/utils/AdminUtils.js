@@ -1,5 +1,5 @@
 'use client';
-import { axiosPublic, axiosPrivate } from "@/utils/AxiosInstance"
+import {axiosPublic, axiosPrivate} from "@/utils/AxiosInstance"
 
 class AdminUtils {
     static async adminData() {
@@ -8,13 +8,41 @@ class AdminUtils {
                 method: "GET",
                 url: '/admin/profile',
             });
-            if (response.status === 200) {
-                return response.data;
-            } else {
-                throw new Error(response.error);
-            }
+            return response.data;
         } catch (error) {
-            console.log({ error });
+            console.log({error});
+            throw new Error(error);
+        }
+    }
+
+    static async createUser(obj) {
+        try {
+            const response = await axiosPrivate({
+                method: "POST",
+                url: '/admin/users/create',
+                data: obj,
+            });
+            return response.data;
+        } catch (error) {
+            console.log({error});
+            throw new Error(error);
+        }
+    }
+
+    static async allUser(params) {
+        try {
+            const response = await axiosPrivate({
+                method: "GET",
+                url: '/admin/users/all',
+                params: params,
+            });
+            console.log({
+                r: response,
+                d: response.data,
+            })
+            return response.data;
+        } catch (error) {
+            console.log({error});
             throw new Error(error);
         }
     }
