@@ -38,7 +38,7 @@ export async function GET(request) {
 
     try {
         // SINGLE CALL - does both authentication AND authorization
-        await AuthController.apiGuardWithPermission("admin", "user", "read");
+        await AuthController.apiGuardWithPermission("admin", "users", "read");
 
         // Execute business logic
         const userData = await AdminController.allUser(params);

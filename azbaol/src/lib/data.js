@@ -1,3 +1,11 @@
+import {
+    Package, MapPin, Clock, Truck, CheckCircle2, XCircle, AlertTriangle,
+    ArrowLeft, Eye, Phone, Mail, Shield, Calendar, CreditCard,
+    Wallet, Smartphone, User, Building2, Navigation, Star,
+    FileText, Image, Play, Download, Copy, ExternalLink,
+    AlertCircle, Info, DollarSign, Weight, Ruler, Tag, Settings
+} from 'lucide-react';
+
 export const mockUsers = [
     {
         _id: "68d12335e6fe2e33bbbb7d75",
@@ -84,3 +92,47 @@ export const mockUsers = [
         stats: { totalDeliveries: 67, averageRating: 4.2, completionRate: 89.5 }
     }
 ];
+
+// Status metadata for consistent styling
+export const statusMeta = {
+    draft: { label: "Draft", icon: Package, color: "bg-gray-500", textColor: "text-gray-600" },
+    submitted: { label: "Submitted", icon: Package, color: "bg-blue-500", textColor: "text-blue-600" },
+    admin_review: { label: "Admin Review", icon: AlertTriangle, color: "bg-amber-500", textColor: "text-amber-600" },
+    admin_approved: { label: "Approved", icon: CheckCircle2, color: "bg-emerald-500", textColor: "text-emerald-600" },
+    pending: { label: "Pending", icon: Clock, color: "bg-blue-500", textColor: "text-blue-600" },
+    broadcast: { label: "Broadcasting", icon: Truck, color: "bg-purple-500", textColor: "text-purple-600" },
+    assigned: { label: "Assigned", icon: User, color: "bg-purple-500", textColor: "text-purple-600" },
+    confirmed: { label: "Confirmed", icon: CheckCircle2, color: "bg-emerald-500", textColor: "text-emerald-600" },
+    en_route_pickup: { label: "En Route Pickup", icon: Navigation, color: "bg-indigo-500", textColor: "text-indigo-600" },
+    arrived_pickup: { label: "Arrived Pickup", icon: MapPin, color: "bg-indigo-500", textColor: "text-indigo-600" },
+    picked_up: { label: "Picked Up", icon: Package, color: "bg-emerald-500", textColor: "text-emerald-600" },
+    in_transit: { label: "In Transit", icon: Truck, color: "bg-sky-500", textColor: "text-sky-600" },
+    arrived_dropoff: { label: "Arrived Dropoff", icon: MapPin, color: "bg-indigo-500", textColor: "text-indigo-600" },
+    delivered: { label: "Delivered", icon: CheckCircle2, color: "bg-emerald-500", textColor: "text-emerald-600" },
+    failed: { label: "Failed", icon: XCircle, color: "bg-red-500", textColor: "text-red-600" },
+    cancelled: { label: "Cancelled", icon: XCircle, color: "bg-red-500", textColor: "text-red-600" },
+    returned: { label: "Returned", icon: AlertTriangle, color: "bg-amber-500", textColor: "text-amber-600" }
+};
+
+export const paymentMethods = {
+    wallet: { label: "Wallet", icon: Wallet, color: "text-purple-600" },
+    paystack: { label: "PayStack", icon: Smartphone, color: "text-blue-600" },
+    banktransfer: { label: "Bank Transfer", icon: CreditCard, color: "text-green-600" }
+};
+export const formatCurrency = (amount, currency = 'NGN') => {
+    return new Intl.NumberFormat('en-NG', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 0
+    }).format(amount);
+}
+
+export const  formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}

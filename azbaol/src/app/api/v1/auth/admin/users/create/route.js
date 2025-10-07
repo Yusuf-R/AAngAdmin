@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request) {
     const body = await request.json();
     try {
-        await AuthController.apiGuardWithPermission("admin", "user", "create");
+        await AuthController.apiGuardWithPermission("admin", "users", "create");
         const adminData = await AdminController.createUser(body);
         return ApiResponseHandler.success(adminData);
     } catch (error) {

@@ -5,9 +5,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default async function AdminPage() {
     const session = await auth();
-    console.log({
-        session
-    })
     const user = session?.user;
 
     return (

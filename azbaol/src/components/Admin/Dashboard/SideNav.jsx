@@ -129,7 +129,9 @@ function SideNav({navState, activeRoute = "/", adminData}) {
 
     return (
         <>
-            <div className="h-full flex flex-col bg-sidebar text-sidebar-foreground relative">
+            <div className="h-full flex flex-col bg-sidebar text-sidebar-foreground relative transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                 {/* Logo Section */}
                 <div className="p-4 border-b border-sidebar-border">
                     {isIconOnly ? (

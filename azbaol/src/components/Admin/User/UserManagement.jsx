@@ -2,16 +2,37 @@
 'use client';
 
 import {
-    Users, Truck, Building, Shield, Search, MoreVertical, Edit, Trash2, Eye,
-    UserCheck, Download, Plus, MapPin, Clock, DollarSign, Phone, Star, Activity, CheckCircle2, Pause, Package
+    Activity,
+    Building,
+    CheckCircle2,
+    Clock,
+    DollarSign,
+    Download,
+    Edit,
+    Eye,
+    MapPin,
+    MoreVertical,
+    Package,
+    Pause,
+    Phone,
+    Plus,
+    Search, SearchIcon,
+    Shield,
+    Star,
+    Trash2,
+    Truck,
+    UserCheck,
+    Users
 } from "lucide-react";
-import {useState, useEffect, useMemo, useCallback} from "react";
+import {useEffect, useMemo, useState} from "react";
 import UserCreationModal from "./UserCreationModal";
 import {toast} from "sonner";
 
 import {useMutation, useQuery} from "@tanstack/react-query";
 import {queryClient} from "@/lib/queryClient";
 import AdminUtils from "@/utils/AdminUtils";
+import {useRouter} from "next/navigation";
+import {Input} from "@/components/ui/input";
 
 // Debounce hook for search
 function useDebounce(value, delay) {
@@ -44,6 +65,7 @@ function UserManagementSystem({allUsersData}) {
 
     // Debounce search term to avoid too many API calls
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
+    const router = useRouter();
 
     // Reset to page 1 when search or filters change
     useEffect(() => {
@@ -64,26 +86,12 @@ function UserManagementSystem({allUsersData}) {
     const {data: usersData, isLoading, isFetching, refetch} = useQuery({
         queryKey: ['allUserData', queryParams],
         queryFn: async () => {
-            console.log('🚀 Fetching users with params:', queryParams);
-            const result = await AdminUtils.allUser(queryParams);
-            console.log('📦 API returned:', result);
-            return result;
+            return await AdminUtils.allUser(queryParams);
         },
         initialData: (currentPage === 1 && !debouncedSearchTerm && selectedRole === "all" && selectedStatus === "all") ? allUsersData : undefined,
         keepPreviousData: true,
         staleTime: 30000, // 30 seconds
         cacheTime: 300000, // 5 minutes
-    });
-
-    // Add this useEffect to see when currentPage changes
-    useEffect(() => {
-        console.log('🔄 Current page changed to:', currentPage);
-    }, [currentPage]);
-
-    console.log({
-        usersData,
-        isLoading,
-        isFetching
     });
 
     const createMutation = useMutation({
@@ -127,15 +135,37 @@ function UserManagementSystem({allUsersData}) {
         return () => clearTimeout(t);
     }, []);
 
-    // Remove client-side filtering since we're doing server-side filtering
-    // const filteredUsers = users; // Server already filtered
     const totalPages = pagination.totalPages || 1;
     const totalUsers = pagination.totalUsers || 0;
 
-    const handleUserAction = (userId, action) => {
-        console.log(`${action} user:`, userId);
-        // TODO: Implement actual user actions
+    const handleUserAction = async (userId, action) => {
+        if (action === 'view' || action === 'edit') {
+            router.push(`/admin/users/${action}/${userId}`);
+        }
+        if (action === 'delete') {
+            await handleDeleteUser({userId, actions: "Deleted"})
+        }
+
+        if (action === 'viewOrders') {
+            router.push(`/admin/users/view/orders/${userId}`)
+        }
     };
+    const handleDeleteUser = async (payload) => {
+        setIsSubmitting(true);
+        try {
+            await AdminUtils.adminActions(payload)
+            setIsSubmitting(false);
+            toast.success("User object updated successfully");
+            setTimeout(() => {
+                router.refresh();
+            }, 800);
+        } catch (err) {
+            setIsSubmitting(false);
+            toast.error('Operation failed')
+            console.log(err.message);
+        }
+
+    }
 
     const getRoleIcon = (role) => {
         if (role === "Admin") return Shield;
@@ -175,7 +205,9 @@ function UserManagementSystem({allUsersData}) {
 
     if (minLoading) {
         return (
-            <div className="rounded-2xl border border-border p-8 bg-card">
+            <div className="rounded-2xl border border-border p-8 bg-card transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                 <div className="space-y-6">
                     <div className="flex items-center justify-between">
                         <div className="space-y-2">
@@ -205,9 +237,13 @@ function UserManagementSystem({allUsersData}) {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
             {/* Header card */}
-            <div className="rounded-2xl border border-border p-8 bg-card">
+            <div className="rounded-2xl border border-border p-8 bg-card transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <div className="flex items-center gap-3 mb-2">
@@ -240,33 +276,31 @@ function UserManagementSystem({allUsersData}) {
                 {/* Search & Filters */}
                 <div className="flex flex-col lg:flex-row gap-4 mb-6">
                     <div className="flex-1 relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground"/>
                         <input
                             type="text"
                             placeholder="Search users by name, email, or phone..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 rounded-xl bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                        />
+                            className="w-full duration-500 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 px-4 py-3 rounded-xl bg-background border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"/>
                     </div>
 
                     <div className="flex gap-3">
                         <select
                             value={selectedRole}
                             onChange={(e) => setSelectedRole(e.target.value)}
-                            className="px-4 py-3 rounded-xl bg-background border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                        >
+                            className="duration-500 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 px-4 py-3 rounded-xl bg-background border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all">
                             <option value="all">All Roles</option>
                             <option value="admin">Admin</option>
                             <option value="client">Client</option>
                             <option value="driver">Driver</option>
                         </select>
 
+
                         <select
                             value={selectedStatus}
                             onChange={(e) => setSelectedStatus(e.target.value)}
-                            className="px-4 py-3 rounded-xl bg-background border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                        >
+                            className="duration-500 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 px-4 py-3 rounded-xl bg-background border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all">
+
                             <option value="all">All Status</option>
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
@@ -281,8 +315,7 @@ function UserManagementSystem({allUsersData}) {
                                 setSortBy(field);
                                 setSortOrder(order);
                             }}
-                            className="px-4 py-3 rounded-xl bg-background border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                        >
+                            className="duration-500 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 px-4 py-3 rounded-xl bg-background border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all">
                             <option value="createdAt-desc">Newest First</option>
                             <option value="createdAt-asc">Oldest First</option>
                             <option value="fullName-asc">Name A-Z</option>
@@ -359,10 +392,13 @@ function UserManagementSystem({allUsersData}) {
             </div>
 
             {/* Table */}
-            <div className="rounded-2xl border border-border overflow-hidden bg-card">
+            <div className="rounded-2xl border border-border overflow-hidden bg-card transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                 {/* Loading indicator */}
                 {isFetching && (
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 animate-pulse"/>
+                    <div
+                        className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-blue-500 animate-pulse"/>
                 )}
 
                 <div className="overflow-x-auto">
@@ -507,14 +543,14 @@ function UserManagementSystem({allUsersData}) {
                                                 <button
                                                     onClick={() => handleUserAction(user._id, 'view')}
                                                     className="p-2 rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
-                                                    title="View User"
+                                                    title="View"
                                                 >
                                                     <Eye className="w-4 h-4"/>
                                                 </button>
                                                 <button
                                                     onClick={() => handleUserAction(user._id, 'edit')}
                                                     className="p-2 rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
-                                                    title="Edit User"
+                                                    title="Edit"
                                                 >
                                                     <Edit className="w-4 h-4"/>
                                                 </button>
@@ -527,23 +563,7 @@ function UserManagementSystem({allUsersData}) {
                                                     <div
                                                         className="absolute right-0 top-full mt-1 w-48 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                                                         <div className="py-1">
-                                                            {user.status === 'Active' ? (
-                                                                <button
-                                                                    onClick={() => handleUserAction(user._id, 'suspend')}
-                                                                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/40 transition-colors"
-                                                                >
-                                                                    <Pause className="w-4 h-4"/>
-                                                                    Suspend User
-                                                                </button>
-                                                            ) : (
-                                                                <button
-                                                                    onClick={() => handleUserAction(user._id, 'activate')}
-                                                                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/40 transition-colors"
-                                                                >
-                                                                    <CheckCircle2 className="w-4 h-4"/>
-                                                                    Activate User
-                                                                </button>
-                                                            )}
+
 
                                                             {user.role === 'Driver' && (
                                                                 <>
@@ -593,23 +613,50 @@ function UserManagementSystem({allUsersData}) {
                                                                 </button>
                                                             )}
 
-                                                            <hr className="my-1 border-border"/>
+                                                            {/*<hr className="my-1 border-border"/>*/}
 
-                                                            <button
-                                                                onClick={() => handleUserAction(user._id, 'impersonate')}
-                                                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-amber-600 hover:bg-muted/40 transition-colors"
-                                                            >
-                                                                <UserCheck className="w-4 h-4"/>
-                                                                Impersonate
-                                                            </button>
+                                                            {/*<button*/}
+                                                            {/*    onClick={() => handleUserAction(user._id, 'impersonate')}*/}
+                                                            {/*    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-amber-600 hover:bg-muted/40 transition-colors"*/}
+                                                            {/*>*/}
+                                                            {/*    <UserCheck className="w-4 h-4"/>*/}
+                                                            {/*    Impersonate*/}
+                                                            {/*</button>*/}
 
-                                                            <button
-                                                                onClick={() => handleUserAction(user._id, 'delete')}
-                                                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-muted/40 transition-colors"
-                                                            >
-                                                                <Trash2 className="w-4 h-4"/>
-                                                                Delete User
-                                                            </button>
+                                                            {/*{user.status === 'Active' ? (*/}
+                                                            {/*    <button*/}
+                                                            {/*        onClick={() => handleUserAction(user._id, 'suspend')}*/}
+                                                            {/*        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/40 transition-colors"*/}
+                                                            {/*    >*/}
+                                                            {/*        <Pause className="w-4 h-4"/>*/}
+                                                            {/*        Suspend User*/}
+                                                            {/*    </button>*/}
+                                                            {/*) : (*/}
+                                                            {/*    <button*/}
+                                                            {/*        onClick={() => handleUserAction(user._id, 'activate')}*/}
+                                                            {/*        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/40 transition-colors"*/}
+                                                            {/*    >*/}
+                                                            {/*        <CheckCircle2 className="w-4 h-4"/>*/}
+                                                            {/*        Activate User*/}
+                                                            {/*    </button>*/}
+                                                            {/*)}*/}
+
+                                                            {/*<button*/}
+                                                            {/*    onClick={() => handleUserAction(user._id, 'delete')}*/}
+                                                            {/*    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-muted/40 transition-colors"*/}
+                                                            {/*>*/}
+                                                            {/*    { user.status === 'Delete' ?*/}
+                                                            {/*        <>*/}
+                                                            {/*            <Trash2 className="w-4 h-4"/>*/}
+                                                            {/*            Delete User*/}
+
+                                                            {/*        </> :*/}
+                                                            {/*        <>*/}
+                                                            {/*            <Trash2 className="w-4 h-4"/>*/}
+                                                            {/*            Restore User*/}
+                                                            {/*        </>*/}
+                                                            {/*    }*/}
+                                                            {/*</button>*/}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -624,7 +671,9 @@ function UserManagementSystem({allUsersData}) {
                 </div>
 
                 {/* Pagination */}
-                <div className="px-6 py-4 border-t border-border flex items-center justify-between bg-card">
+                <div className="px-6 py-4 border-t border-border flex items-center justify-between bg-card transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                     <div className="text-sm text-muted-foreground">
                         Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalUsers)} of {totalUsers} users
                     </div>

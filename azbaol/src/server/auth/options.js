@@ -6,6 +6,7 @@ import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 
 const options = {
+    secret: process.env.AUTH_SECRET,
     providers: [
         Google,
         Credentials({
@@ -173,9 +174,7 @@ const options = {
             }
             return true;
         },
-
         async signOut({}){},
-
         async jwt({token, user, account}) {
             // Store temp Google data for registration
             if (account?.provider === 'google' && user?.tempGoogleData) {
@@ -223,7 +222,6 @@ const options = {
 
             return token;
         },
-
         async session({session, token}) {
             if (token.id && token.role) {
                 session.user.id = token.id;
@@ -239,7 +237,6 @@ const options = {
             return session;
         },
     },
-
 };
 
 export default options;

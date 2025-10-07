@@ -1,6 +1,6 @@
 // /models/Orders/Order.js
 import mongoose from "mongoose";
-import dbClient from "../database/mongoDB";
+import dbClient from "@/server/db/mongoDb";
 
 const {Schema, model} = mongoose;
 
@@ -55,7 +55,7 @@ const LocationSchema = new Schema({
         floor: String,
         unit: String
     }
-}, {_id: false});
+}, {_id: false, strictPopulate: false});
 
 // Package Details Schema
 const PackageSchema = new Schema({
@@ -99,7 +99,7 @@ const PackageSchema = new Schema({
     },
     description: String,
     specialInstructions: String
-}, {_id: false});
+}, {_id: false, strictPopulate: false});
 
 // Cost Calculation Schema
 const PricingSchema = new Schema({
@@ -120,7 +120,7 @@ const PricingSchema = new Schema({
     },
     totalAmount: {type: Number, required: true},
     currency: {type: String, default: 'NGN'}
-}, {_id: false});
+}, {_id: false, strictPopulate: false});
 
 // Timeline/Status History Schema for orderCreation updates till payments
 const OrderCreationHistorySchema = new Schema({
@@ -131,7 +131,7 @@ const OrderCreationHistorySchema = new Schema({
         role: {type: String, enum: ['client', 'driver', 'admin', 'system']}
     },
     notes: String,
-}, {_id: true});
+}, {_id: true, strictPopulate: false});
 
 // OrderTracking schema after from assigning to delivery
 const OrderTrackingHistorySchema = new Schema({
@@ -153,12 +153,21 @@ const OrderTrackingHistorySchema = new Schema({
             'arrived_at_destination',
             'delivery_completed',
             'delivery_failed',
-            'cancelled'
+            'cancelled',
+            'system_admin_rejected'
         ]
     },
     timestamp: { type: Date, default: Date.now },
     title: { type: String, required: true }, // e.g., "Driver Assigned"
     description: { type: String }, // e.g., "Michael A. accepted your order"
+    reason:{
+        paymentVerified: {type: Boolean, default: false},
+        dataIntegrity: {type: Boolean, default: false},
+        driverAssignment: {type: Boolean, default: false},
+        driverAcceptance: {type: Boolean, default: false},
+        contraBandItems: {type: Boolean, default: false},
+        reversalNote: String
+    },
     icon: { type: String }, // e.g., "🚗", "✅", "📦"
 
     // Additional context for the UI
@@ -189,7 +198,7 @@ const OrderTrackingHistorySchema = new Schema({
 
     isCompleted: { type: Boolean, default: false },
     isCurrent: { type: Boolean, default: false }
-}, { _id: true });
+}, { _id: true, strictPopulate: false });
 
 // Driver Tracking Schema and Assignment
 const DriverAssignedTrackingSchema = new Schema({
@@ -238,7 +247,7 @@ const DriverAssignedTrackingSchema = new Schema({
     },
     rejectionReason: String,
     responseTime: Number,
-}, {_id: false});
+}, {_id: false, strictPopulate: false  });
 
 // Main Order Schema
 const OrderSchema = new Schema({
@@ -460,17 +469,16 @@ const OrderSchema = new Schema({
 
 }, {
     timestamps: true,
-    collection: 'orders'
+    collection: 'orders',
+    strictPopulate: false
 });
 
 // Indexes for Performance
 OrderSchema.index({clientId: 1, status: 1});
 OrderSchema.index({'tracking.driverId': 1, status: 1});
-OrderSchema.index({status: 1, createdAt: -1});
 OrderSchema.index({orderType: 1, scheduledPickup: 1});
 OrderSchema.index({'location.pickUp.coordinates': '2dsphere'});
 OrderSchema.index({'location.dropOff.coordinates': '2dsphere'});
-OrderSchema.index({createdAt: -1});
 
 // Virtual for order age
 OrderSchema.virtual('orderAge').get(function () {
@@ -591,8 +599,10 @@ const OrderAssignmentSchema = new Schema({
         notifiedAt: {type: Date, default: Date.now},
         responded: {type: Boolean, default: false},
         response: {type: String, enum: ['accepted', 'rejected']},
+        respondedAt: Date,
         responseTime: Number,
-        rejectionReason: String
+        rejectionReason: String,
+        cooldownExpiry: Date,
     }],
     assignmentStrategy: {
         type: String,
@@ -600,8 +610,8 @@ const OrderAssignmentSchema = new Schema({
         default: 'nearest'
     },
     broadcastRadius: {type: Number, default: 5000}, // in meters
-    maxDrivers: {type: Number, default: 10},
-    timeoutDuration: {type: Number, default: 300}, // 5 minutes in seconds
+    maxDrivers: {type: Number, default: 1000},
+    timeoutDuration: {type: Number, default: 15000}, // 15 minutes in seconds
     status: {
         type: String,
         enum: ['broadcasting', 'assigned', 'failed', 'cancelled'],
@@ -612,12 +622,15 @@ const OrderAssignmentSchema = new Schema({
     failureReason: String
 }, {
     timestamps: true,
-    collection: 'order_assignments'
+    collection: 'order_assignments',
 });
 
 OrderAssignmentSchema.index({orderId: 1});
 OrderAssignmentSchema.index({'availableDrivers.driverId': 1});
 OrderAssignmentSchema.index({status: 1, createdAt: 1});
+OrderSchema.index({ status: 1, createdAt: -1 });
+OrderSchema.index({ "payment.status": 1 });
+OrderSchema.index({ createdAt: -1 });
 
 // Utility function to generate order reference
 function generateOrderRef() {

@@ -1,57 +1,57 @@
 // Centralized permission configuration
 export const PERMISSION_MATRIX = {
     super_admin: {
-        create: ["profile", "orders", "payment", "security", "user", "client", "driver", "settings"],
-        read: ["profile", "orders", "payment", "security", "user", "client", "driver", "settings", "analytics", "reports"],
-        update: ["profile", "orders", "payment", "security", "user", "client", "driver", "settings"],
-        delete: ["profile", "orders", "payment", "security", "client","user", "driver"],
-        manage: ["roles", "permissions", "system_settings"]
+        create: ["profile", "orders", "payment", "security", "location", "users",  "admin", "client", "driver", "settings", "socket"],
+        read: ["profile", "orders", "payment", "security", "orders", "location", "users",  "admin", "client", "driver", "settings", "analytics", "reports", "socket"],
+        update: ["profile", "orders", "payment", "security", "orders",  "location", "users", "admin", "client", "driver", "settings", "socket"],
+        delete: ["profile", "orders", "payment", "security", "orders",  "location",  "admin", "client","users", "driver", "socket"],
+        manage: ["roles", "permissions", "system_settings", "orders", "socket", "session", "status"]
     },
 
     platform_manager: {
-        create: ["orders", "payment", "user"],
-        read: ["profile", "orders", "payment", "user", "driver", "analytics"],
-        update: ["orders", "payment", "user"],
-        delete: ["orders", "payment"],
-        manage: ["driver_assignments", "promotions"]
+        create: ["orders", "payment",  "location", "users", "socket"],
+        read: ["profile", "orders",  "location", "payment", "users", "driver", "analytics", "socket"],
+        update: ["orders", "payment",  "location", "users", "socket"],
+        delete: ["orders", "payment",  "location", "socket"],
+        manage: ["driver_assignments",  "location", "promotions", "orders", "socket", "session", "status"]
     },
 
     operations_manager: {
-        create: ["orders"],
-        read: ["orders", "user", "driver", "analytics"],
-        update: ["orders", "driver"],
-        delete: [],
-        manage: ["order_priority"]
+        create: ["orders", "socket"],
+        read: ["orders", "users", "driver", "analytics", "socket"],
+        update: ["orders", "driver", "socket"],
+        delete: ["socket"],
+        manage: ["order_priority", "socket", "status"]
     },
 
     customer_support: {
-        create: [],
-        read: ["profile", "orders", "user"],
+        create: ["socket"],
+        read: ["profile", "orders", "users", "socket"],
         update: ["orders", "profile"],
-        delete: [],
-        manage: []
+        delete: ["socket"],
+        manage: ["socket"]
     },
 
     finance_manager: {
-        create: ["payment"],
-        read: ["payment", "orders", "reports"],
+        create: ["payment", "socket"],
+        read: ["payment", "orders", "reports", "socket"],
         update: ["payment"],
-        delete: [],
+        delete: ["socket"],
         manage: ["payouts", "invoices"]
     },
 
     compliance_officer: {
-        create: [],
-        read: ["security", "orders", "payment", "user", "reports"],
-        update: ["security"],
-        delete: [],
-        manage: ["audit_logs"]
+        create: ["socket"],
+        read: ["security", "orders", "payment", "users", "reports", "socket"],
+        update: ["security", "socket"],
+        delete: ["socket"],
+        manage: ["audit_logs", "socket", "status"]
     }
 };
 
 // Resource categories for UI organization
 export const RESOURCE_CATEGORIES = {
-    user_management: ["user", "profile"],
+    user_management: ["users", "profile"],
     operations: ["orders", "driver"],
     financial: ["payment", "payouts", "invoices"],
     security: ["security", "audit_logs"],

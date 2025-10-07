@@ -237,7 +237,9 @@ function DashboardAnalytics() {
     };
 
     return (
-            <div className="max-w-7xl mx-auto space-y-8">
+            <div className="max-w-7xl mx-auto space-y-8 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                 {/* Main Header */}
                 <div className="flex items-center justify-between">
                     <div>
@@ -257,7 +259,9 @@ function DashboardAnalytics() {
                 </div>
 
                 {/* SHIPMENT METRICS - Primary Focus */}
-                <div className="space-y-6">
+                <div className="space-y-6 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                     <SectionHeader
                         title="Shipment Analytics"
                         description="Current delivery performance and status"
@@ -298,7 +302,9 @@ function DashboardAnalytics() {
                         />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                         <AnalyticsCard
                             title="Pending"
                             value={analytics.shipmentMetrics.pending.value}
@@ -333,7 +339,9 @@ function DashboardAnalytics() {
                 </div>
 
                 {/* USER METRICS */}
-                <div className="space-y-6">
+                <div className="space-y-6 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                     <SectionHeader
                         title="User Analytics"
                         description="Platform user growth and distribution"
@@ -341,7 +349,9 @@ function DashboardAnalytics() {
                         color="green"
                     />
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                         <AnalyticsCard
                             title="New Users"
                             value={analytics.userMetrics.newUsers.value}

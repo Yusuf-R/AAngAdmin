@@ -56,12 +56,16 @@ const UserSection = () => {
 
     return (
         <>
-                <div className="max-w-7xl mx-auto space-y-8">
+                <div className="max-w-7xl mx-auto space-y-8 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                     <div>
                         <h2 className="text-2xl font-bold text-foreground">User Summary</h2>
                         <p className="text-muted-foreground">Real-time User Management</p>
                     </div>
-                    <Card className="w-full">
+                    <Card className="w-full transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                         <CardHeader className="flex flex-row items-center justify-between">
                             <div>
                                 <CardTitle>Add Clients</CardTitle>

@@ -26,7 +26,7 @@ const ROLE_PREFIX = {
     Driver: "/driver",
 };
 
-export async function middleware(req: Request) {
+export async function middleware(req) {
     const url = new URL(req.url);
     const { pathname } = url;
     const isApi = pathname.startsWith("/api");

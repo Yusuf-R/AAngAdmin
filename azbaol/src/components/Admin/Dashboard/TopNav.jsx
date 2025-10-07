@@ -56,7 +56,9 @@ function TopNav({ onToggleSideNav, adminData }) {
     }, [isDropdownOpen]);
 
     return (
-        <div className="bg-background border-b border-border px-4 py-2 shadow-sm">
+        <div className="bg-background border-b border-border px-4 py-2 shadow-sm transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
             <div className="flex items-center justify-between">
                 {/* Left Section */}
                 <div className="flex items-center gap-6">
@@ -89,16 +91,16 @@ function TopNav({ onToggleSideNav, adminData }) {
                 </div>
 
                 {/* Center Section - Search */}
-                <div className="flex-1 max-w-md mx-8 hidden lg:block">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                        <input
-                            type="text"
-                            placeholder="Search anything..."
-                            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-card hover:bg-accent transition-colors duration-200 text-foreground placeholder-muted-foreground"
-                        />
-                    </div>
-                </div>
+                {/*<div className="flex-1 max-w-md mx-8 hidden lg:block">*/}
+                {/*    <div className="relative">*/}
+                {/*        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />*/}
+                {/*        <input*/}
+                {/*            type="text"*/}
+                {/*            placeholder="Search anything..."*/}
+                {/*            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-card hover:bg-accent transition-colors duration-200 text-foreground placeholder-muted-foreground"*/}
+                {/*        />*/}
+                {/*    </div>*/}
+                {/*</div>*/}
 
                 {/* Right Section */}
                 <div className="flex items-center gap-4">

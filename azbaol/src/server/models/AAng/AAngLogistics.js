@@ -13,6 +13,7 @@ const connectDB = async () => {
 const baseOptions = {
     discriminatorKey: "role",
     timestamps: true,
+    strictPopulate: false
 };
 
 const AuthMethodSchema = new Schema({
@@ -30,7 +31,7 @@ const AuthMethodSchema = new Schema({
         type: Date,
         default: Date.now
     }
-}, {_id: false});
+}, {_id: false, strictPopulate: false});
 const GoogleCredentialsSchema = new Schema({
     googleId: {
         type: String,
@@ -79,10 +80,10 @@ const LocationSchema = new Schema({
         floor: String,
         unit: String
     }
-}, {_id: true});
+}, {_id: true, strictPopulate: false});
 // Enhanced Client Schema
 const ClientSchema = new Schema({
-    savedLocations: {type: [LocationSchema], default: []},
+    // savedLocations: {type: [LocationSchema], default: []},
 
     // User Preferences
     preferences: {
@@ -174,7 +175,7 @@ const DriverSchema = new Schema({
         timestamp: {type: Date, default: Date.now},
         address: String,
         isMoving: {type: Boolean, default: false},
-        zone: String // operational zone/region
+        zone: String
     },
 
     // Vehicle & Equipment Details
@@ -358,84 +359,6 @@ const AdminSchema = new Schema({
         default: "super_admin",
         required: true
     },
-
-    // permissionMatrix: {
-    //     // User Management
-    //     users: {
-    //         view: {type: Boolean, default: false},
-    //         create: {type: Boolean, default: false},
-    //         edit: {type: Boolean, default: false},
-    //         suspend: {type: Boolean, default: false},
-    //         delete: {type: Boolean, default: false},
-    //         impersonate: {type: Boolean, default: false}
-    //     },
-    //
-    //     // Enhanced Order Management
-    //     orders: {
-    //         view_all: {type: Boolean, default: false},
-    //         view_assigned: {type: Boolean, default: false},
-    //         update_status: {type: Boolean, default: false},
-    //         cancel_any: {type: Boolean, default: false},
-    //         refund: {type: Boolean, default: false},
-    //         priority_handling: {type: Boolean, default: false},
-    //         manual_status_update: {type: Boolean, default: false},
-    //         override_driver_assignment: {type: Boolean, default: false},
-    //         emergency_intervention: {type: Boolean, default: false},
-    //         tracking_visibility: {type: String, enum: ["none", "assigned", "regional", "all"], default: "assigned"},
-    //         bulk_operations: {type: Boolean, default: false}
-    //     },
-    //
-    //     // Driver Management
-    //     drivers: {
-    //         onboard: {type: Boolean, default: false},
-    //         verify: {type: Boolean, default: false},
-    //         suspend: {type: Boolean, default: false},
-    //         payout: {type: Boolean, default: false},
-    //         performance_view: {type: Boolean, default: false},
-    //         location_tracking: {type: Boolean, default: false},
-    //         schedule_management: {type: Boolean, default: false},
-    //         emergency_response: {type: Boolean, default: false}
-    //     },
-    //
-    //     // Financial Controls
-    //     financial: {
-    //         view_reports: {type: Boolean, default: false},
-    //         process_refunds: {type: Boolean, default: false},
-    //         adjust_balances: {type: Boolean, default: false},
-    //         export_data: {type: Boolean, default: false},
-    //         tax_operations: {type: Boolean, default: false},
-    //         payout_approval: {type: Boolean, default: false},
-    //         fraud_investigation: {type: Boolean, default: false}
-    //     },
-    //
-    //     // System Operations
-    //     system: {
-    //         config_update: {type: Boolean, default: false},
-    //         feature_toggle: {type: Boolean, default: false},
-    //         api_management: {type: Boolean, default: false},
-    //         database_operations: {type: Boolean, default: false},
-    //         server_maintenance: {type: Boolean, default: false},
-    //         backup_restore: {type: Boolean, default: false}
-    //     },
-    //
-    //     // Content & Communications
-    //     content: {
-    //         send_notifications: {type: Boolean, default: false},
-    //         manage_templates: {type: Boolean, default: false},
-    //         broadcast_messages: {type: Boolean, default: false},
-    //         sms_operations: {type: Boolean, default: false},
-    //         email_campaigns: {type: Boolean, default: false}
-    //     },
-    //
-    //     // Security & Compliance
-    //     security: {
-    //         view_audit_logs: {type: Boolean, default: false},
-    //         manage_roles: {type: Boolean, default: false},
-    //         data_export: {type: Boolean, default: false},
-    //         compliance_reports: {type: Boolean, default: false},
-    //         incident_management: {type: Boolean, default: false}
-    //     }
-    // },
 
     // Real-time Operations
     realTimeOperations: {
@@ -641,6 +564,7 @@ const AdminSchema = new Schema({
     }
 }, {
     timestamps: true,
+    strictPopulate: false,
     toJSON: {virtuals: true},
     toObject: {virtuals: true}
 });
@@ -672,6 +596,7 @@ const AAngSchema = new Schema({
     address: String,
     state: String,
     lga: String,
+    savedLocations: {type: [LocationSchema], default: []},
     authPin: {
         pin: {type: String},
         isEnabled: {type: Boolean, default: false},
@@ -739,6 +664,16 @@ const AAngSchema = new Schema({
                 default: {}
             }
         }
+    },
+    expoPushToken: {
+        type: String,
+        sparse: true,
+        index: true
+    },
+    pushTokenStatus: {
+        valid: { type: Boolean, default: true },
+        lastVerified: Date,
+        failureCount: { type: Number, default: 0 }
     },
     sessionTokens: [{
         token: String,
@@ -854,6 +789,9 @@ function getWeekStart() {
 AAngSchema.index({ phoneNumber: 1 });
 AAngSchema.index({ status: 1 });
 AAngSchema.index({ role: 1 });
+AAngSchema.index({ savedLocations: 1 });
+AAngSchema.index({ 'sessionTokens.lastActive': 1 });
+AAngSchema.index({ 'sessionTokens._id': 1 });
 
 // Client schema indexes
 ClientSchema.index({ 'trustScore.score': 1 });

@@ -112,7 +112,9 @@ const UserCreationModal = ({isOpen, onClose, onSubmit, isSubmitting}) => {
                 </div>
             )}
 
-            <div className="rounded-2xl border border-border w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-card">
+            <div className="rounded-2xl border border-border w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-card transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                 <div className="p-6 border-b border-border">
                     <h2 className="text-2xl font-bold text-foreground mb-2">Create New User</h2>
                     <p className="text-muted-foreground">Add a new user to the platform</p>
@@ -124,14 +126,18 @@ const UserCreationModal = ({isOpen, onClose, onSubmit, isSubmitting}) => {
                         <label className="block text-sm font-medium text-foreground mb-3">
                             User Type <span className="text-red-500">*</span>
                         </label>
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-3 gap-3 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                             {userTypes.map((ut) => {
                                 const isSelected = selectedRole === ut.type;
                                 return (
                                     <div
                                         key={ut.type}
                                         onClick={() => handleRoleSelect(ut.type)}
-                                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all group bg-background ${
+                                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all group bg-background transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 ${
                                             isSelected
                                                 ? 'border-solid border-emerald-500 shadow-lg shadow-emerald-500/20'
                                                 : 'border-dashed border-border hover:border-emerald-500/50'
@@ -158,7 +164,9 @@ const UserCreationModal = ({isOpen, onClose, onSubmit, isSubmitting}) => {
                             </label>
                             <select
                                 {...register('adminRole')}
-                                className="w-full px-4 py-3 rounded-lg bg-background border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                className=" transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 w-full px-4 py-3 rounded-lg bg-background border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                             >
                                 <option value="">Select Admin Role</option>
                                 {adminRoles.map((role) => (
@@ -182,7 +190,9 @@ const UserCreationModal = ({isOpen, onClose, onSubmit, isSubmitting}) => {
                             <input
                                 {...register('fullName')}
                                 type="text"
-                                className="w-full px-4 py-3 rounded-lg bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                className=" transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 w-full px-4 py-3 rounded-lg bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                                 placeholder="Enter full name"
                             />
                             {errors.fullName && (
@@ -197,7 +207,9 @@ const UserCreationModal = ({isOpen, onClose, onSubmit, isSubmitting}) => {
                             <input
                                 {...register('email')}
                                 type="email"
-                                className="w-full px-4 py-3 rounded-lg bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                className=" transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 w-full px-4 py-3 rounded-lg bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                                 placeholder="Enter email address"
                             />
                             {errors.email && (
@@ -213,7 +225,9 @@ const UserCreationModal = ({isOpen, onClose, onSubmit, isSubmitting}) => {
                                 <input
                                     {...register('password')}
                                     type={showPassword ? 'text' : 'password'}
-                                    className="w-full px-4 py-3 pr-10 rounded-lg bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                    className=" transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 w-full px-4 py-3 pr-10 rounded-lg bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                                     placeholder="Enter password"
                                 />
                                 <button
@@ -241,7 +255,9 @@ const UserCreationModal = ({isOpen, onClose, onSubmit, isSubmitting}) => {
                             <input
                                 {...register('phoneNumber')}
                                 type="tel"
-                                className="w-full px-4 py-3 rounded-lg bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                className="transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 w-full px-4 py-3 rounded-lg bg-background border border-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                                 placeholder="+234 xxx xxx xxxx"
                             />
                             {errors.phoneNumber && (
@@ -255,7 +271,9 @@ const UserCreationModal = ({isOpen, onClose, onSubmit, isSubmitting}) => {
                             </label>
                             <select
                                 {...register('gender')}
-                                className="w-full px-4 py-3 rounded-lg bg-background border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                                className=" transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 w-full px-4 py-3 rounded-lg bg-background border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                             >
                                 <option value="">Select Gender Role</option>
                                 {["Male", "Female", "Others"].map((role) => (
@@ -271,7 +289,9 @@ const UserCreationModal = ({isOpen, onClose, onSubmit, isSubmitting}) => {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="p-6 border-t border-border flex justify-end gap-3 bg-card -m-6 mt-6">
+                    <div className="p-6 border-t border-border flex justify-end gap-3 bg-card -m-6 mt-6 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                         <button
                             type="button"
                             onClick={() => {

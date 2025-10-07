@@ -52,7 +52,8 @@ class AuthController {
             throw new Error("Unauthorized: No active session");
         }
 
-        if (session.user.role !== requiredRole) {
+        if (session.user?.role !== requiredRole) {
+            console.log(`Forbidden: ${session.user.role} cannot access ${requiredRole} resources`)
             throw new Error(`Forbidden: ${session.user.role} cannot access ${requiredRole} resources`);
         }
 

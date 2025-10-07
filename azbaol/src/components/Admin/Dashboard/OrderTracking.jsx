@@ -424,7 +424,9 @@ function OrderTracking() {
                     </div>
 
                     {/* Content */}
-                    <div className="p-6 space-y-6">
+                    <div className="p-6 space-y-6 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                         {/* Package Details */}
                         <div>
                             <h3 className="font-semibold text-foreground mb-3">Package Details</h3>
@@ -558,8 +560,12 @@ function OrderTracking() {
     }
 
     return (
-            <div className="max-w-7xl mx-auto space-y-8">
-                <div className="flex items-center justify-between">
+            <div className="max-w-7xl mx-auto space-y-8 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+                <div className="flex items-center justify-between transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                     <div>
                         <h2 className="text-2xl font-bold text-foreground">Active Deliveries</h2>
                         <p className="text-muted-foreground">Real-time tracking of current orders</p>
@@ -572,7 +578,9 @@ function OrderTracking() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-colors duration-500
+      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
+      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                     {orders.map(order => (
                         <OrderCard key={order._id} order={order}/>
                     ))}

@@ -1,9 +1,21 @@
 'use client';
-import { axiosPublic, axiosPrivate } from "@/utils/AxiosInstance"
+import {axiosPublic, axiosPrivate} from "@/utils/AxiosInstance"
 
 class AuthUtils {
+    static async DbTest() {
+        try {
+            const response = await axiosPublic({
+                method: "GET",
+                url: '/db/test',
+            });
+            return response.data;
+        } catch (err) {
+            console.log({err})
+            throw new Error(err.response?.data?.error || err.message);
+        }
+    }
 
-    // Encrypt data using the PEM public key stored as an environment variable
+
     static async GoogleSignUp(obj) {
         try {
             const response = await axiosPublic({
@@ -77,7 +89,7 @@ class AuthUtils {
                 throw new Error(response.error);
             }
         } catch (error) {
-            console.log({ error });
+            console.log({error});
             throw new Error(error);
         }
     }
@@ -94,7 +106,7 @@ class AuthUtils {
                 throw new Error(response.error);
             }
         } catch (error) {
-            console.log({ error });
+            console.log({error});
             throw new Error(error);
         }
     }
