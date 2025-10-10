@@ -259,6 +259,7 @@ function System() {
             setIsDeletionDataLoading(false);
         }
     };
+
     const fetchDeletionOrders = async () => {
         setIsDeletionDataLoading(true);
         try {
@@ -293,6 +294,7 @@ function System() {
             setIsLoadingSessions(false);
         }
     };
+
     const handleBulkCleanup = async (strategy) => {
         const usersToClean = sessions.filter(user => {
             const sessionCount = user.sessionTokens?.length || 0;
@@ -320,7 +322,7 @@ function System() {
         try {
             const result = await AdminUtils.bulkCleanupSessions(strategy);
             toast.success(result.message || `Cleaned up sessions for ${usersToClean.length} users`);
-            fetchUserSessions();
+            await fetchUserSessions();
         } catch (error) {
             toast.error(`Bulk cleanup failed: ${error.message}`);
         } finally {

@@ -189,7 +189,7 @@ class AdminUtils {
         try {
             const response = await axiosPrivate({
                 method: "GET",
-                url: '/admin/session',
+                url: '/admin/system/session',
             });
             return response.data;
         } catch (err) {
@@ -205,14 +205,11 @@ class AdminUtils {
      * @param {string} strategy - 'keep-recent-5', 'remove-stale', 'delete-all'
      */
     static async cleanupUserSessions(userId, strategy) {
-        const payload = {
-            userId,
-            strategy
-        }
+        const payload={userId, strategy}
         try {
             const response = await axiosPrivate({
                 method: "POST",
-                url: '/admin/session/user/cleanup',
+                url: '/admin/system/session/user/cleanup',
                 data: payload
             });
             return response.data;
@@ -230,11 +227,10 @@ class AdminUtils {
         try {
             const response = await axiosPrivate({
                 method: "POST",
-                url: '/admin/session/bulk/cleanup',
+                url: '/admin/system/session/cleanup/bulk',
                 data: strategy
             });
             return response.data;
-
         } catch (error) {
             console.error('Bulk cleanup error:', error);
             throw error;
@@ -250,7 +246,7 @@ class AdminUtils {
         try {
             const response = await axiosPrivate({
                 method: 'DELETE',
-                url: '/admin/session/user/delete',
+                url: '/admin/system/session/user/delete',
                 data: {
                     userId,
                     tokenId
@@ -270,7 +266,7 @@ class AdminUtils {
         try {
             const response = await axiosPrivate({
                 method: 'GET',
-                url: '/admin/session/statistics',
+                url: '/admin/system/session/statistics',
             });
             return response.data;
         } catch (error) {
@@ -287,7 +283,7 @@ class AdminUtils {
         try {
             const response = await axiosPrivate({
                 method: 'GET',
-                url: '/admin/session/user/details',
+                url: '/admin/system/session/user/details',
             })
             return response.data;
         } catch (error) {

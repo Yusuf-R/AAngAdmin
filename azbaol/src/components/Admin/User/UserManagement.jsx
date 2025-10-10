@@ -149,6 +149,11 @@ function UserManagementSystem({allUsersData}) {
         if (action === 'viewOrders') {
             router.push(`/admin/users/view/orders/${userId}`)
         }
+
+        if (action === 'viewWallet') {
+            router.push(`/admin/users/view/wallet/${userId}`)
+
+        }
     };
     const handleDeleteUser = async (payload) => {
         setIsSubmitting(true);
