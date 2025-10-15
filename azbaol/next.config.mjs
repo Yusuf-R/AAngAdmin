@@ -49,6 +49,10 @@ const nextConfig = {
                 protocol: "https",
                 hostname: "res.cloudinary.com",
             },
+            {
+                protocol: "https",
+                hostname: "aanglogistics.s3.eu-north-1.amazonaws.com",
+            },
         ],
     },
     crossOrigin: 'anonymous',

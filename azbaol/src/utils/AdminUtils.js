@@ -387,6 +387,21 @@ class AdminUtils {
         }
 
     }
+
+    // Data validation
+    static async adminReviewDriverVerification(payload) {
+        try {
+            const response = await axiosPrivate({
+                method: 'PATCH',
+                url: '/admin/users/update/verification',
+                data: payload
+            })
+            return response.data;
+        } catch (error) {
+            console.log('Get session details error:', error);
+            throw error;
+        }
+    }
 }
 
 export default AdminUtils;

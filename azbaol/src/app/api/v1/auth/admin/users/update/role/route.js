@@ -6,9 +6,6 @@ import {ApiResponseHandler} from "@/server/utils/apiResponseHandler";
 
 export async function PATCH(request) {
     const payload = await request.json();
-    console.log({
-        payload,
-    })
     if (!payload || !payload.userId || !payload.adminRole ) {
         return ApiResponseHandler.handle({message: "Missing required fields", status: 400});
     }

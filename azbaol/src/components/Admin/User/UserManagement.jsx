@@ -18,6 +18,7 @@ import {
     Plus,
     Search, SearchIcon,
     Shield,
+    ShieldCheck,
     Star,
     Trash2,
     Truck,
@@ -152,7 +153,10 @@ function UserManagementSystem({allUsersData}) {
 
         if (action === 'viewWallet') {
             router.push(`/admin/users/view/wallet/${userId}`)
+        }
 
+        if (action === 'viewValidation') {
+            router.push(`/admin/users/view/validation/${userId}`)
         }
     };
     const handleDeleteUser = async (payload) => {
@@ -410,7 +414,7 @@ function UserManagementSystem({allUsersData}) {
                     <table className="w-full">
                         <thead className="bg-muted/50 border-b border-border">
                         <tr>
-                            {['User', 'Role', 'Status', 'Contact', 'Stats', 'Last Active', 'Actions'].map(h => (
+                            {['User', 'Role', 'Status', 'Contact', 'Verification', 'Stats', 'Last Active', 'Actions'].map(h => (
                                 <th key={h} className="text-left px-6 py-4 font-semibold text-foreground">{h}</th>
                             ))}
                         </tr>
@@ -428,6 +432,7 @@ function UserManagementSystem({allUsersData}) {
                                 return (
                                     <tr key={user._id}
                                         className="border-b border-border hover:bg-muted/40 transition-colors">
+                                        {/* Avatar FullName Email */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="relative">
@@ -458,6 +463,7 @@ function UserManagementSystem({allUsersData}) {
                                             </div>
                                         </td>
 
+                                        {/* Role */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
                                                 <RoleIcon className={
@@ -484,13 +490,15 @@ function UserManagementSystem({allUsersData}) {
                                             </div>
                                         </td>
 
+                                        {/* Status */}
                                         <td className="px-6 py-4">
-                          <span
-                              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusClasses(user.status)}`}>
-                            {user.status}
-                          </span>
+                                            <span
+                                                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusClasses(user.status)}`}>
+                                                {user.status}
+                                            </span>
                                         </td>
 
+                                        {/* Contacts */}
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2">
@@ -501,6 +509,42 @@ function UserManagementSystem({allUsersData}) {
                                             </div>
                                         </td>
 
+                                        {/* Verification */}
+                                        <td className="px-6 py-4">
+                                            {user.role === 'Driver' ? (
+                                                <div className="flex items-center gap-2">
+                                                    {(() => {
+                                                        const status = user.verification?.overallStatus || 'pending';
+                                                        const statusConfig = {
+                                                            incomplete: { bg: 'bg-gray-100 dark:bg-gray-500/20', text: 'text-gray-600 dark:text-gray-400', label: 'Incomplete' },
+                                                            pending: { bg: 'bg-gray-100 dark:bg-gray-500/20', text: 'text-gray-600 dark:text-gray-400', label: 'Pending' },
+                                                            submitted: { bg: 'bg-amber-100 dark:bg-amber-500/20', text: 'text-amber-600 dark:text-amber-400', label: 'Submitted', glow: true },
+                                                            approved: { bg: 'bg-emerald-100 dark:bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400', label: 'Approved' },
+                                                            rejected: { bg: 'bg-red-100 dark:bg-red-500/20', text: 'text-red-600 dark:text-red-400', label: 'Rejected' },
+                                                            suspended: { bg: 'bg-slate-100 dark:bg-slate-500/20', text: 'text-slate-600 dark:text-slate-400', label: 'Suspended' },
+                                                            expired: { bg: 'bg-orange-100 dark:bg-orange-500/20', text: 'text-orange-600 dark:text-orange-400', label: 'Expired' }
+                                                        };
+                                                        const config = statusConfig[status] || statusConfig.pending;
+
+                                                        return (
+                                                            <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text} ${config.glow ? 'animate-pulse' : ''}`}>
+                                                                {config.glow && (
+                                                                    <span className="relative flex h-2 w-2">
+                                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                                                    </span>
+                                                                )}
+                                                                {config.label}
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground">Not Applicable</span>
+                                            )}
+                                        </td>
+
+                                        {/* Stats */}
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
                                                 {user.role === 'Admin' && (
@@ -536,6 +580,7 @@ function UserManagementSystem({allUsersData}) {
                                             </div>
                                         </td>
 
+                                        {/* Last Active */}
                                         <td className="px-6 py-4">
                                             <div>
                                                 <p className="text-sm text-foreground">{formatTimeAgo(user.lastActive)}</p>
@@ -543,6 +588,7 @@ function UserManagementSystem({allUsersData}) {
                                             </div>
                                         </td>
 
+                                        {/* Table Actions */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
                                                 <button
@@ -568,10 +614,15 @@ function UserManagementSystem({allUsersData}) {
                                                     <div
                                                         className="absolute right-0 top-full mt-1 w-48 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                                                         <div className="py-1">
-
-
                                                             {user.role === 'Driver' && (
                                                                 <>
+                                                                    <button
+                                                                        onClick={() => handleUserAction(user._id, 'viewValidation')}
+                                                                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/40 transition-colors"
+                                                                    >
+                                                                        <ShieldCheck className="w-4 h-4"/>
+                                                                        View Validation
+                                                                    </button>
                                                                     <button
                                                                         onClick={() => handleUserAction(user._id, 'viewPerformance')}
                                                                         className="w-full flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:bg-muted/40 transition-colors"
@@ -677,8 +728,8 @@ function UserManagementSystem({allUsersData}) {
 
                 {/* Pagination */}
                 <div className="px-6 py-4 border-t border-border flex items-center justify-between bg-card transition-colors duration-500
-      bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50
-      dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+                                bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900"
+                >
                     <div className="text-sm text-muted-foreground">
                         Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalUsers)} of {totalUsers} users
                     </div>
@@ -737,7 +788,6 @@ function UserManagementSystem({allUsersData}) {
                 onSubmit={handleCreateUser}
                 isSubmitting={isSubmitting}
             />
-
         </div>
     );
 }

@@ -37,6 +37,7 @@ function SideNav({navState, activeRoute = "/", adminData}) {
         {icon: Box, label: "Orders", path: "/admin/orders"},
         {icon: HandCoins, label: "Payments", path: "/admin/payment"},
         {icon: UserRoundPen, label: "Profile", path: "/admin/profile"},
+        {icon: Bell, label: "Notifications", path: "/admin/notifications"},
         {icon: Settings, label: "Settings", path: "/admin/settings"},
         {icon: DatabaseZap, label: "System", path: "/admin/system"},
     ];

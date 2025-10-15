@@ -7,7 +7,7 @@ import {revalidatePath, revalidateTag} from "next/cache";
 import getOrderModels from "@/server/models/Order";
 import {NextResponse} from "next/server";
 
-const {Admin, AAngBase} = await getModels()
+const { Admin, AAngBase, Driver } = await getModels()
 const {Order} = await getOrderModels();
 await dbClient.connect();
 
@@ -1506,7 +1506,7 @@ class AdminController {
         const {Driver} = await getModels();
 
         const pickupCoords = order.location.pickUp.coordinates.coordinates;
-        const maxDistance = this.calculateBroadcastRadius(order);
+        const maxDistance = AdminController.calculateBroadcastRadius(order);
 
         // Query for eligible drivers with geospatial search
         return await Driver.aggregate([
@@ -1830,6 +1830,189 @@ class AdminController {
 
 
         return JSON.parse(JSON.stringify(client));
+    }
+
+    // In your AdminController
+    static async updateDriverValidation(payload) {
+        await dbClient.connect();
+        const { id, action, feedback, adminId } = payload;
+
+        // Validate action
+        if (action !== 'approve' && action !== 'reject' && action !== 'suspend') {
+            throw new Error('Invalid action');
+        }
+
+        // Verify admin exists
+        const admin = await Admin.findById(adminId);
+        if (!admin) {
+            throw new Error('Admin not found');
+        }
+
+        // Find driver
+        const driver = await Driver.findById(id);
+        if (!driver) {
+            throw new Error('Driver not found');
+        }
+
+        // Map frontend actions to database statuses
+        const statusMap = {
+            'approve': 'approved',
+            'reject': 'rejected',
+            'suspend': 'suspended'
+        };
+
+        const newStatus = statusMap[action];
+        const now = new Date();
+
+        // Update verification status
+        driver.verification.overallStatus = newStatus;
+        driver.verification.verifiedBy = adminId;
+        driver.verification.verificationDate = now;
+        driver.verification.lastReviewDate = now;
+
+        // Set rejection reason if applicable
+        if (action === 'reject' || action === 'suspend') {
+            driver.verification.rejectionReason = feedback;
+        }
+
+        // Update individual document statuses based on overall decision
+        await AdminController.updateIndividualDocumentStatuses(driver, newStatus, adminId);
+
+        // Add to submission history
+        const latestSubmission = driver.verification.submissions[driver.verification.submissions.length - 1];
+        if (latestSubmission) {
+            latestSubmission.reviewedBy = adminId;
+            latestSubmission.reviewedAt = now;
+            latestSubmission.status = newStatus;
+            latestSubmission.feedback = feedback || '';
+        }
+
+        // Update driver status based on verification outcome
+        if (action === 'approve') {
+            driver.status = 'Active';
+            driver.availabilityStatus = 'online'; // They can now go online
+        } else if (action === 'suspend') {
+            driver.status = 'Suspended';
+            driver.availabilityStatus = 'offline'; // Force offline
+        } else if (action === 'reject') {
+            driver.status = 'Active'; // Keep active but verification rejected
+            driver.availabilityStatus = 'offline'; // Can't operate without approval
+        }
+
+        // Calculate compliance score
+        driver.verification.complianceScore = AdminController.calculateComplianceScore(driver, newStatus);
+
+        await driver.save();
+
+        // TODO: Trigger notifications (email/SMS) to driver
+        // TODO: Log admin action in audit trail
+
+        return {
+            success: true,
+            message: `Driver verification ${action}d successfully`,
+            driver: {
+                _id: driver._id,
+                fullName: driver.fullName,
+                status: driver.status,
+                verificationStatus: driver.verification.overallStatus
+            }
+        };
+    }
+
+    // Helper to update individual document statuses
+    static updateIndividualDocumentStatuses(driver, overallStatus, adminId) {
+        const now = new Date();
+
+        // Update basic verification documents
+        if (driver.verification.basicVerification) {
+            // Identification
+            if (driver.verification.basicVerification.identification) {
+                driver.verification.basicVerification.identification.status = overallStatus;
+                driver.verification.basicVerification.identification.verified = overallStatus === 'approved';
+                driver.verification.basicVerification.identification.verifiedAt = now;
+                driver.verification.basicVerification.identification.verifiedBy = adminId;
+                if (overallStatus === 'rejected') {
+                    driver.verification.basicVerification.identification.rejectionReason = 'Part of overall rejection';
+                }
+            }
+
+            // Passport photo
+            if (driver.verification.basicVerification.passportPhoto) {
+                driver.verification.basicVerification.passportPhoto.status = overallStatus;
+                driver.verification.basicVerification.passportPhoto.verified = overallStatus === 'approved';
+                driver.verification.basicVerification.passportPhoto.verifiedAt = now;
+                if (overallStatus === 'rejected') {
+                    driver.verification.basicVerification.passportPhoto.rejectionReason = 'Part of overall rejection';
+                }
+            }
+
+            // Bank accounts
+            if (driver.verification.basicVerification.bankAccounts) {
+                driver.verification.basicVerification.bankAccounts.forEach(account => {
+                    account.verified = overallStatus === 'approved';
+                    account.verifiedAt = now;
+                });
+            }
+
+            // Operational area
+            if (driver.verification.basicVerification.operationalArea) {
+                driver.verification.basicVerification.operationalArea.verified = overallStatus === 'approved';
+                driver.verification.basicVerification.operationalArea.verifiedAt = now;
+            }
+        }
+
+        // Update vehicle-specific verification
+        const vehicleType = driver.verification.specificVerification.activeVerificationType;
+        if (vehicleType && driver.verification.specificVerification[vehicleType]) {
+            const vehicleData = driver.verification.specificVerification[vehicleType];
+
+            // Generic function to update nested document status
+            const updateDocumentStatus = (doc) => {
+                if (doc && typeof doc === 'object') {
+                    if (doc.status !== undefined) {
+                        doc.status = overallStatus;
+                    }
+                    if (doc.verified !== undefined) {
+                        doc.verified = overallStatus === 'approved';
+                        doc.verifiedAt = now;
+                    }
+                }
+            };
+
+            // Update all document fields in vehicle data
+            Object.values(vehicleData).forEach(field => {
+                if (field && typeof field === 'object') {
+                    if (Array.isArray(field)) {
+                        field.forEach(updateDocumentStatus);
+                    } else {
+                        updateDocumentStatus(field);
+                    }
+                }
+            });
+        }
+    }
+
+    // Helper to calculate compliance score
+    static calculateComplianceScore(driver, status) {
+        if (status === 'approved') {
+            return 100; // Fully compliant
+        } else if (status === 'suspended') {
+            return 40; // Partially compliant but suspended
+        } else if (status === 'rejected') {
+            return 20; // Mostly non-compliant
+        }
+
+        // Calculate based on completed verification steps
+        let score = 0;
+        const basic = driver.verification.basicVerification;
+        const specific = driver.verification.specificVerification;
+
+        if (basic?.isComplete) score += 40;
+        if (specific?.isComplete) score += 40;
+        if (basic?.identification?.verified) score += 10;
+        if (basic?.passportPhoto?.verified) score += 10;
+
+        return Math.min(100, score);
     }
 }
 
