@@ -1,4 +1,4 @@
-// lib/socket-service.js
+// lib/SocketClient.js
 import { io } from 'socket.io-client';
 
 class SocketClient {
@@ -7,50 +7,79 @@ class SocketClient {
         this.isConnected = false;
         this.eventListeners = new Map();
         this.latencyTests = [];
+        this._connectingPromise = null; // guard for in-flight connects
     }
 
-    /**
-     * Connects to the Socket.IO server with authentication
-     * @param {Object} [options={}] - Additional socket.io connection options
-     * @returns {Promise<SocketClient>}
-     * @throws {Error} If connection fails or auth token is missing
-     */
     async connect(options = {}) {
+        // Already connected? reuse.
+        if (this.isConnected && this.socket && this.socket.connected) return this;
+
+        // If connection is already in progress? wait for it.
+        if (this._connectingPromise) return this._connectingPromise;
+
+        // Start a fresh connection (closes any stale socket)
         this.disconnect();
 
         const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL;
-        if (!SOCKET_URL) {
-            throw new Error('Socket server URL not configured (NEXT_PUBLIC_SOCKET_SERVER_URL)');
-        }
+        if (!SOCKET_URL) throw new Error('Socket server URL not configured (NEXT_PUBLIC_SOCKET_SERVER_URL)');
 
-        // Fetch the socket auth token
         const authToken = await this.fetchAuthToken();
-        if (!authToken) {
-            throw new Error('Failed to obtain socket authentication token');
-        }
+        if (!authToken) throw new Error('Failed to obtain socket authentication token');
 
-        // Initialize socket connection
         this.socket = io(SOCKET_URL, {
             transports: ['websocket', 'polling'],
             auth: {
                 token: authToken,
-                ...options.auth,
-                clientType: 'web'
+                clientType: 'web',
+                ...(options.auth || {}),
             },
             ...options,
         });
 
-        await this.setupConnection();
-        return this;
+        this._connectingPromise = new Promise((resolve, reject) => {
+            let timeoutId;
+
+            const cleanup = () => {
+                if (timeoutId) clearTimeout(timeoutId);
+                if (this.socket) {
+                    this.socket.off('connect', onConnect);
+                    this.socket.off('connect_error', onError);
+                }
+                this._connectingPromise = null;
+            };
+
+            const onConnect = () => {
+                this.isConnected = true;
+                cleanup();
+                this.setupEventHandlers();
+                resolve(this); // resolve with the instance for convenient chaining
+            };
+
+            const onError = (err) => {
+                this.isConnected = false;
+                cleanup();
+                reject(new Error(`Connection failed: ${err && err.message ? err.message : String(err)}`));
+            };
+
+            this.socket.once('connect', onConnect);
+            this.socket.once('connect_error', onError);
+
+            // Optional timeout safety
+            timeoutId = setTimeout(() => {
+                if (!this.isConnected) {
+                    cleanup();
+                    this.cleanup();
+                    reject(new Error('Socket connection timeout'));
+                }
+            }, 10000);
+        });
+
+        return this._connectingPromise;
     }
 
-    /**
-     * Fetches a short-lived JWT token for socket authentication
-     * @returns {Promise<string | null>}
-     */
     async fetchAuthToken() {
         try {
-            const res = await fetch('/api/v1/auth/admin/socket');
+            const res = await fetch('/api/v1/auth/admin/system/socket');
             if (!res.ok) {
                 const errorText = await res.text();
                 console.error('Auth token API error:', res.status, errorText);
@@ -64,52 +93,6 @@ class SocketClient {
         }
     }
 
-    /**
-     * Sets up event listeners and waits for connection
-     * @returns {Promise<void>}
-     */
-    async setupConnection() {
-        return new Promise((resolve, reject) => {
-            const handleError = (error) => {
-                cleanup();
-                console.log({
-                    error
-                })
-                reject(new Error(`Socket connection failed: ${error.message}`));
-            };
-
-            const handleConnect = () => {
-                this.isConnected = true;
-                cleanup();
-                this.setupEventHandlers();
-                resolve();
-            };
-
-            const cleanup = () => {
-                if (this.socket) {
-                    this.socket.off('connect', handleConnect);
-                    this.socket.off('connect_error', handleError);
-                }
-                if (timeoutId) clearTimeout(timeoutId);
-            };
-
-            this.socket.once('connect', handleConnect);
-            this.socket.once('connect_error', handleError);
-
-            // Timeout fallback
-            const timeoutId = setTimeout(() => {
-                if (!this.isConnected) {
-                    cleanup();
-                    this.cleanup(); // Disconnect socket
-                    reject(new Error('Socket connection timeout'));
-                }
-            }, 10000);
-        });
-    }
-
-    /**
-     * Attaches all event listeners after successful connection
-     */
     setupEventHandlers() {
         this.socket.on('disconnect', (reason) => {
             this.isConnected = false;
@@ -121,13 +104,8 @@ class SocketClient {
         });
 
         // Business events
-        this.socket.on('notification:new', (data) => {
-            this.emitEvent('notification', data);
-        });
-
-        this.socket.on('order:updated', (data) => {
-            this.emitEvent('order-update', data);
-        });
+        this.socket.on('notification:new', (data) => this.emitEvent('notification', data));
+        this.socket.on('order:updated', (data) => this.emitEvent('order-update', data));
 
         this.socket.on('pong', (data) => {
             const latency = Date.now() - data.clientTime;
@@ -140,24 +118,32 @@ class SocketClient {
         });
     }
 
-    /**
-     * Tests end-to-end latency with the server
-     * @returns {Promise<{ success: boolean, latency?: number, serverTime?: number, error?: string }>}
-     */
+    // --- Event Emitter helpers ---
+    on(event, callback) {
+        if (!this.eventListeners.has(event)) this.eventListeners.set(event, new Set());
+        this.eventListeners.get(event).add(callback);
+    }
+
+    off(event, callback) {
+        if (this.eventListeners.has(event)) this.eventListeners.get(event).delete(callback);
+    }
+
+    emitEvent(event, data) {
+        const listeners = this.eventListeners.get(event);
+        if (listeners) listeners.forEach((cb) => cb(data));
+    }
+
+    // --- Utilities you already had ---
     async testConnection() {
-        if (!this.isConnected || !this.socket) {
-            return { success: false, error: 'Not connected' };
-        }
+        if (!this.isConnected || !this.socket) return { success: false, error: 'Not connected' };
 
         return new Promise((resolve) => {
             const clientTime = Date.now();
-            const timeout = setTimeout(() => {
-                resolve({ success: false, error: 'Timeout' });
-            }, 5000);
+            const timeout = setTimeout(() => resolve({ success: false, error: 'Timeout' }), 5000);
 
             this.socket.emit('ping:health', clientTime, (response) => {
                 clearTimeout(timeout);
-                if (response?.serverTime) {
+                if (response && response.serverTime) {
                     const latency = Date.now() - clientTime;
                     resolve({ success: true, latency, serverTime: response.serverTime });
                 } else {
@@ -167,9 +153,6 @@ class SocketClient {
         });
     }
 
-    /**
-     * Sends a test notification (admin only)
-     */
     sendTestNotification() {
         if (!this.isConnected) return false;
         this.socket.emit('admin:test-notification', {
@@ -180,31 +163,20 @@ class SocketClient {
         return true;
     }
 
-    /**
-     * Sends order assignment to Node.js server for driver notifications
-     * @param {Object} orderAssignment - The order assignment object
-     * @returns {boolean} - Success status
-     */
     sendOrderAssignment(orderAssignment) {
         if (!this.isConnected) {
             console.error('Socket not connected');
             return false;
         }
-
         this.socket.emit('order:assignment', {
             type: 'ORDER_ASSIGNMENT',
-            orderAssignment: orderAssignment,
+            orderAssignment,
             timestamp: new Date().toISOString(),
-            source: 'web-admin'
+            source: 'web-admin',
         });
-
-        console.log('Order assignment sent to Node.js server');
         return true;
     }
 
-    /**
-     * Simulates an order update
-     */
     simulateOrderUpdate() {
         if (!this.isConnected) return false;
         this.socket.emit('order:test-update', {
@@ -216,30 +188,7 @@ class SocketClient {
         return true;
     }
 
-    // --- Event Emitter Methods ---
-
-    on(event, callback) {
-        if (!this.eventListeners.has(event)) {
-            this.eventListeners.set(event, new Set());
-        }
-        this.eventListeners.get(event).add(callback);
-    }
-
-    off(event, callback) {
-        if (this.eventListeners.has(event)) {
-            this.eventListeners.get(event).delete(callback);
-        }
-    }
-
-    emitEvent(event, data) {
-        const listeners = this.eventListeners.get(event);
-        if (listeners) {
-            listeners.forEach((cb) => cb(data));
-        }
-    }
-
     // --- Lifecycle ---
-
     disconnect() {
         this.cleanup();
     }
@@ -258,5 +207,4 @@ class SocketClient {
     }
 }
 
-// Singleton export
 export const socketClient = new SocketClient();

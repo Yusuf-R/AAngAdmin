@@ -14,7 +14,7 @@ const nextConfig = {
         style-src 'self' 'unsafe-inline';
         img-src 'self' data: https:;
         script-src-elem 'self' 'unsafe-inline' https://apis.google.com https://www.gstatic.com https://maps.googleapis.com;
-        connect-src 'self' http://10.96.154.44:5000 ws://10.96.154.44:5000 wss://10.96.154.44:5000 https://*.googleapis.com https://*.mongodb.net https://*.cloudinary.com https://*.amazonaws.com;
+        connect-src 'self' http://10.96.154.44:5000 ws://10.96.154.44:5000 wss://10.96.154.44:5000 http://172.20.10.5:5000 ws://172.20.10.5:5000 wss://172.20.10.5:5000 https://*.googleapis.com https://*.mongodb.net https://*.cloudinary.com https://*.amazonaws.com;
         frame-src 'self' https://accounts.google.com;
         font-src 'self' https://fonts.gstatic.com;
         media-src 'self' https://*.cloudinary.com;

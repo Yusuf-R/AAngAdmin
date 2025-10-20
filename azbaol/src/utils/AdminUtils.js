@@ -402,6 +402,232 @@ class AdminUtils {
             throw error;
         }
     }
+
+    /**
+     * Fetch admin notifications with filters
+     */
+  static async getNotifications(filters = {}) {
+        try {
+            const response = await axiosPrivate({
+                method: 'GET',
+                url: '/admin/notifications/get',
+                params: filters
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Get notifications error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get top 5 unread notifications for navbar
+     */
+    static async getTopUnreadNotifications(params) {
+        try {
+            const response = await axiosPrivate({
+                method: 'GET',
+                url: `/admin/notifications/top`,
+                params: params
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Get top unread notifications error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Mark notification as read
+     */
+    static async markAsRead(notificationId) {
+        try {
+            const response = await axiosPrivate({
+                method: 'PATCH',
+                url: `/admin/notifications/read`,
+                data: notificationId
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Read notifications error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Mark all notifications as read
+     */
+    static async markAllAsRead(category = null) {
+        try {
+            const response = await axiosPrivate({
+                method: 'PATCH',
+                url: `/admin/notifications/read/all`,
+                data: category
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Mark all-as read notifications error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Soft delete notification
+     */
+    static async deleteNotification(notificationId) {
+        try {
+            const response = await axiosPrivate({
+                method: 'DELETE',
+                url: `/admin/notifications/delete`,
+                data: notificationId
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Delete notifications error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    static async restoreNotification (notificationId) {
+        try {
+            const response = await axiosPrivate({
+                method: 'PATCH',
+                url: `/admin/notifications/restore`,
+                data: notificationId
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Delete notifications error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Delete all notifications (soft delete)
+     */
+    static async deleteAllNotifications() {
+        try {
+            const response = await axiosPrivate({
+                method: 'DELETE',
+                url: `/admin/notifications/delete/all`,
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Delete all notifications error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Permanently delete notifications (admin only)
+     */
+    static async permanentlyDeleteNotifications(notificationIds = [], deleteAll = false) {
+        try {
+            const response = await axiosPrivate({
+                method: 'DELETE',
+                url: `/admin/notifications/delete/permanent`,
+                data: {
+                    notificationIds, deleteAll
+                }
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Permanent Delete notifications error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get notification statistics
+     */
+    static async getStatistics() {
+        try {
+            const response = await axiosPrivate({
+                method: 'GET',
+                url: `/admin/notifications/statistics`,
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Get statistics notifications error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Create notification for a user (admin action)
+     */
+    static async createNotificationForUser(payload) {
+        try {
+            const response = await axiosPrivate({
+                method: 'POST',
+                url: `/admin/notifications/create`,
+                data: payload
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Create notifications error:', error);
+            return { success: false, error: error.message };
+        }
+
+    }
+
+    /**
+     * Format notification time for display
+     */
+    static formatTime(date) {
+        const now = new Date();
+        const d = new Date(date);
+        const diffMin = Math.floor((now - d) / (1000 * 60));
+
+        if (diffMin < 1) return 'Just now';
+        if (diffMin < 60) return `${diffMin}m ago`;
+        if (diffMin < 1440) return `${Math.floor(diffMin / 60)}h ago`;
+        if (diffMin < 10080) return `${Math.floor(diffMin / 1440)}d ago`;
+
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    /**
+     * Get notification icon and color based on category and type
+     */
+    static getNotificationMeta(notification) {
+        const { category, priority, type } = notification;
+
+        const priorityColors = {
+            CRITICAL: 'text-red-600 bg-red-50 dark:bg-red-500/10',
+            URGENT: 'text-orange-600 bg-orange-50 dark:bg-orange-500/10',
+            HIGH: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-500/10',
+            NORMAL: 'text-blue-600 bg-blue-50 dark:bg-blue-500/10',
+            LOW: 'text-gray-600 bg-gray-50 dark:bg-gray-500/10'
+        };
+
+        const categoryIcons = {
+            ORDER: '📦',
+            DELIVERY: '🚚',
+            SECURITY: '🔒',
+            IDENTITY: '👤',
+            SYSTEM: '⚙️',
+            PAYMENT: '💳',
+            SOCIAL: '💬',
+            PROMOTION: '🎉'
+        };
+
+        return {
+            icon: categoryIcons[category] || '📬',
+            color: priorityColors[priority] || priorityColors.NORMAL,
+            priority
+        };
+    }
+
 }
 
 export default AdminUtils;

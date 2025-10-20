@@ -1,10 +1,15 @@
-import { Menu, Bell, Search, User, ChevronDown, Sun, Moon, Settings, LogOut, UserCircle, Wrench } from "lucide-react";
+import { Menu, Bell, Search, User, ChevronDown, Sun, Moon, Settings, LogOut, UserCircle, Wrench, BellDot } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ModeToggle } from "@/components/ModeToggle";
+import NotificationDropdown from "@/components/Admin/Notification/NotificationDropdown";
+import { useNotifications } from "@/contexts/NotificationContext";
 
 function TopNav({ onToggleSideNav, adminData }) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
+
+    // Get notification state from context
+    const { unreadCount, hasUnread, isConnected } = useNotifications();
 
     // Update time every minute
     useEffect(() => {
@@ -90,18 +95,6 @@ function TopNav({ onToggleSideNav, adminData }) {
                     </div>
                 </div>
 
-                {/* Center Section - Search */}
-                {/*<div className="flex-1 max-w-md mx-8 hidden lg:block">*/}
-                {/*    <div className="relative">*/}
-                {/*        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />*/}
-                {/*        <input*/}
-                {/*            type="text"*/}
-                {/*            placeholder="Search anything..."*/}
-                {/*            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-card hover:bg-accent transition-colors duration-200 text-foreground placeholder-muted-foreground"*/}
-                {/*        />*/}
-                {/*    </div>*/}
-                {/*</div>*/}
-
                 {/* Right Section */}
                 <div className="flex items-center gap-4">
                     {/* Mobile Search Button */}
@@ -112,11 +105,17 @@ function TopNav({ onToggleSideNav, adminData }) {
                     {/* Light/Dark Mode Toggle */}
                     <ModeToggle/>
 
-                    {/* Notifications */}
-                    <button className="relative p-2 rounded-lg hover:bg-accent transition-colors duration-200 text-foreground">
-                        <Bell className="w-5 h-5" />
-                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                    </button>
+                    {/* Notification Dropdown - Integrated */}
+                    <div className="relative">
+                        <NotificationDropdown />
+
+                        {/* Socket Connection Indicator (optional - for debugging) */}
+                        {!isConnected && (
+                            <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-yellow-500 rounded-full"
+                                 title="Reconnecting..."
+                            />
+                        )}
+                    </div>
 
                     {/* User Profile Dropdown */}
                     <div className="relative user-dropdown">

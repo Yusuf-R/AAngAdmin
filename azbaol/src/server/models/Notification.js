@@ -1,5 +1,6 @@
 // Enhanced Notification Schema with deep categorization and intelligence
 import mongoose from "mongoose";
+
 const {Schema, model} = mongoose;
 
 const NotificationSchema = new mongoose.Schema({
@@ -62,6 +63,13 @@ const NotificationSchema = new mongoose.Schema({
             'identity.kyc_approved',
             'identity.kyc_rejected',
             'identity.complete_profile_reminder',
+
+            // Specific to Driver Document Verification
+            'verification.document_submitted',
+            'verification.document_verified',
+            'verification.document_rejected',
+            'verification.document_suspended',
+            'verification.document_review',
 
             // SYSTEM category
             'system.maintenance',
@@ -126,6 +134,100 @@ const NotificationSchema = new mongoose.Schema({
             }],
             customData: Object,
         }
+    },
+
+    // adminAction
+    adminAction: {
+        required: {
+            type: Boolean,
+            default: false,
+            index: true,
+        },
+
+        // Type of admin action needed
+        actionType: {
+            type: String,
+            enum: [
+                'REVIEW',           // Requires review (e.g., driver docs, user reports)
+                'APPROVE',          // Requires approval (e.g., verification, refunds)
+                'ASSIGN',           // Requires assignment (e.g., order to driver)
+                'RESOLVE',          // Requires resolution (e.g., disputes, issues)
+                'ACKNOWLEDGE',      // Requires acknowledgment (e.g., critical alerts)
+                'INVESTIGATE',      // Requires investigation (e.g., fraud, security)
+                'CONFIGURE',        // Requires configuration (e.g., system settings)
+                'RESPOND'           // Requires response (e.g., support tickets)
+            ],
+            default: null,
+        },
+
+        // Target admin role (if specific role required)
+        targetRole: {
+            type: String,
+            enum: ["super_admin", "platform_manager", "operations_manager", "customer_support", "finance_manager", "compliance_officer"],
+            default: 'super_admin',
+        },
+
+        // Priority urgency (distinct from notification priority)
+        urgency: {
+            type: String,
+            enum: ['IMMEDIATE', 'TODAY', 'THIS_WEEK', 'WHENEVER'],
+            default: 'WHENEVER',
+        },
+
+        // Action status tracking
+        status: {
+            type: String,
+            enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'REJECTED', 'ESCALATED'],
+            default: 'PENDING',
+            index: true,
+        },
+
+        // Who handled it
+        handledBy: {
+            adminId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Base',
+            },
+            adminName: String,
+            handledAt: Date,
+        },
+
+        // Action outcome
+        outcome: {
+            decision: String, // 'approved', 'rejected', 'deferred', etc.
+            notes: String,
+            completedAt: Date,
+        },
+
+        // SLA tracking
+        sla: {
+            dueAt: Date,
+            isOverdue: {
+                type: Boolean,
+                default: false,
+            },
+            responseTime: Number, // In minutes
+            resolutionTime: Number, // In minutes
+        },
+
+        // Related entity that triggered admin action
+        relatedEntity: {
+            type: {
+                type: String,
+                enum: [
+                    'order',
+                    'driver_verification',
+                    'user_profile',
+                    'payment',
+                    'dispute',
+                    'support_ticket',
+                    'system_alert',
+                    'report'
+                ],
+            },
+            id: mongoose.Schema.Types.ObjectId,
+            status: String, // Current status of the entity
+        },
     },
 
     // Enhanced metadata for context and intelligence
@@ -207,6 +309,12 @@ NotificationSchema.index({userId: 1, status: 1});
 NotificationSchema.index({userId: 1, category: 1, createdAt: -1});
 NotificationSchema.index({priority: 1, status: 1, createdAt: 1});
 NotificationSchema.index({'metadata.orderId': 1, 'metadata.orderRef': 1});
+NotificationSchema.index({
+    'adminAction.required': 1,
+    'adminAction.status': 1,
+    'adminAction.urgency': -1,
+    createdAt: -1
+});
 
 // Pre-save middleware to update timestamps
 NotificationSchema.pre('save', function (next) {

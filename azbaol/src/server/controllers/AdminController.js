@@ -5,6 +5,8 @@ import mongoose from "mongoose";
 import AuthController from "@/server/controllers/AuthController";
 import {revalidatePath, revalidateTag} from "next/cache";
 import getOrderModels from "@/server/models/Order";
+import Notification from "@/server/models/Notification"
+import NotificationService from "@/server/services/NotificationService"
 import {NextResponse} from "next/server";
 
 const { Admin, AAngBase, Driver } = await getModels()
@@ -2013,6 +2015,1182 @@ class AdminController {
         if (basic?.passportPhoto?.verified) score += 10;
 
         return Math.min(100, score);
+    }
+
+    // Notification
+    /**
+     * Get initial notification data for admin panel
+     * Similar to initialOrderData pattern
+     */
+    // Enhanced initialNotificationData method for AdminController
+    // This aligns with getNotifications to provide consistent comprehensive statistics
+
+    static async initialNotificationData(params = {}) {
+        const {
+            page = 1,
+            limit = 100,
+            sortBy = 'createdAt',
+            sortOrder = 'desc',
+            search = '',
+            category = '',
+            priority = '',
+            status = '',
+            showDeleted = 'false' // New parameter to control deleted visibility
+        } = params;
+
+        try {
+            await dbClient.connect();
+
+            const skip = (page - 1) * limit;
+
+            // Build search/filter pipeline - DON'T filter deleted by default for admin view
+            const matchStage = {};
+
+            // Show deleted filter
+            if (showDeleted === 'only') {
+                matchStage['deleted.status'] = true;
+            } else if (showDeleted === 'false') {
+                matchStage['deleted.status'] = false;
+            }
+            // If 'true' or 'all', show both deleted and non-deleted
+
+            // Add filters
+            if (category && category !== 'all') {
+                matchStage.category = category;
+            }
+            if (priority && priority !== 'all') {
+                matchStage.priority = priority;
+            }
+            if (status && status !== 'all') {
+                if (status === 'unread') {
+                    matchStage['read.status'] = false;
+                } else if (status === 'read') {
+                    matchStage['read.status'] = true;
+                } else {
+                    matchStage.status = status;
+                }
+            }
+
+            // Add search functionality
+            if (search && search.trim()) {
+                matchStage.$or = [
+                    {'content.title': {$regex: search.trim(), $options: 'i'}},
+                    {'content.body': {$regex: search.trim(), $options: 'i'}},
+                    {'content.orderRef': {$regex: search.trim(), $options: 'i'}},
+                    {'metadata.orderRef': {$regex: search.trim(), $options: 'i'}}
+                ];
+            }
+
+            // Build aggregation pipeline
+            const pipeline = [
+                {$match: matchStage},
+                {
+                    $addFields: {
+                        // Priority score for sorting
+                        priorityScore: {
+                            $switch: {
+                                branches: [
+                                    {case: {$eq: ["$priority", "CRITICAL"]}, then: 1000},
+                                    {case: {$eq: ["$priority", "URGENT"]}, then: 800},
+                                    {case: {$eq: ["$priority", "HIGH"]}, then: 600},
+                                    {case: {$eq: ["$priority", "NORMAL"]}, then: 400},
+                                    {case: {$eq: ["$priority", "LOW"]}, then: 200}
+                                ],
+                                default: 400
+                            }
+                        },
+                        // Read status score (unread = higher priority)
+                        readScore: {
+                            $cond: {
+                                if: {$eq: ["$read.status", false]},
+                                then: 1000,
+                                else: 0
+                            }
+                        },
+                        // Deleted penalty (deleted = lower priority)
+                        deletedPenalty: {
+                            $cond: {
+                                if: {$eq: ["$deleted.status", true]},
+                                then: -5000, // Push deleted to bottom
+                                else: 0
+                            }
+                        }
+                    }
+                },
+                {
+                    $addFields: {
+                        finalScore: {
+                            $add: ["$priorityScore", "$readScore", "$deletedPenalty"]
+                        }
+                    }
+                }
+            ];
+
+            // Get total count for pagination
+            const countPipeline = [...pipeline, {$count: "total"}];
+            const [countResult] = await Notification.aggregate(countPipeline);
+            const totalFiltered = countResult?.total || 0;
+
+            // Add sorting and pagination
+            pipeline.push(
+                {
+                    $sort: {
+                        [sortBy === 'priority' ? 'finalScore' : sortBy]: sortOrder === 'desc' ? -1 : 1,
+                        createdAt: -1
+                    }
+                },
+                {$skip: skip},
+                {$limit: limit}
+            );
+
+            const notifications = await Notification.aggregate(pipeline);
+
+            // Define all possible categories, priorities, and statuses
+            const allCategories = ['ORDER', 'DELIVERY', 'SECURITY', 'IDENTITY', 'SYSTEM', 'PAYMENT', 'SOCIAL', 'PROMOTION'];
+            const allPriorities = ['CRITICAL', 'URGENT', 'HIGH', 'NORMAL', 'LOW'];
+            const allStatuses = ['PENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'EXPIRED'];
+
+            // Enhanced comprehensive statistics pipeline
+            const statsPipeline = [
+                {
+                    $facet: {
+                        // Overall system statistics (ALL notifications in DB)
+                        totalAll: [{$count: "count"}],
+                        totalDeleted: [
+                            {$match: {'deleted.status': true}},
+                            {$count: "count"}
+                        ],
+                        totalActive: [
+                            {$match: {'deleted.status': false}},
+                            {$count: "count"}
+                        ],
+                        unreadAll: [
+                            {$match: {'read.status': false}},
+                            {$count: "count"}
+                        ],
+                        unreadActive: [
+                            {$match: {'read.status': false, 'deleted.status': false}},
+                            {$count: "count"}
+                        ],
+
+                        // Category breakdowns (system-wide)
+                        systemCategoryBreakdown: [
+                            {$group: {_id: "$category", count: {$sum: 1}}}
+                        ],
+                        activeCategoryBreakdown: [
+                            {$match: {'deleted.status': false}},
+                            {$group: {_id: "$category", count: {$sum: 1}}}
+                        ],
+                        filteredCategoryBreakdown: [
+                            {$match: matchStage},
+                            {$group: {_id: "$category", count: {$sum: 1}}}
+                        ],
+
+                        // Priority breakdowns
+                        systemPriorityBreakdown: [
+                            {$group: {_id: "$priority", count: {$sum: 1}}}
+                        ],
+                        activePriorityBreakdown: [
+                            {$match: {'deleted.status': false}},
+                            {$group: {_id: "$priority", count: {$sum: 1}}}
+                        ],
+                        unreadPriorityBreakdown: [
+                            {$match: {'read.status': false, 'deleted.status': false}},
+                            {$group: {_id: "$priority", count: {$sum: 1}}}
+                        ],
+                        filteredPriorityBreakdown: [
+                            {$match: matchStage},
+                            {$group: {_id: "$priority", count: {$sum: 1}}}
+                        ],
+
+                        // Status breakdowns
+                        systemStatusBreakdown: [
+                            {$group: {_id: "$status", count: {$sum: 1}}}
+                        ],
+                        activeStatusBreakdown: [
+                            {$match: {'deleted.status': false}},
+                            {$group: {_id: "$status", count: {$sum: 1}}}
+                        ],
+                        filteredStatusBreakdown: [
+                            {$match: matchStage},
+                            {$group: {_id: "$status", count: {$sum: 1}}}
+                        ],
+
+                        // User statistics
+                        topUsers: [
+                            {$group: {_id: "$userId", count: {$sum: 1}}},
+                            {$sort: {count: -1}},
+                            {$limit: 10}
+                        ],
+
+                        // Recent activity (last 7 days)
+                        recentActivity: [
+                            {
+                                $match: {
+                                    createdAt: {$gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)}
+                                }
+                            },
+                            {
+                                $group: {
+                                    _id: {
+                                        $dateToString: {format: "%Y-%m-%d", date: "$createdAt"}
+                                    },
+                                    count: {$sum: 1}
+                                }
+                            },
+                            {$sort: {_id: 1}}
+                        ]
+                    }
+                }
+            ];
+
+            const [statsResult] = await Notification.aggregate(statsPipeline);
+
+            // Helper function to convert array to object with default values
+            const arrayToObject = (array, defaultKeys, defaultValue = 0) => {
+                const result = {};
+                defaultKeys.forEach(key => {
+                    result[key] = defaultValue;
+                });
+                array.forEach(item => {
+                    result[item._id] = item.count;
+                });
+                return result;
+            };
+
+            // Process all statistics
+            const systemCategoryStats = arrayToObject(statsResult.systemCategoryBreakdown || [], allCategories);
+            const activeCategoryStats = arrayToObject(statsResult.activeCategoryBreakdown || [], allCategories);
+            const filteredCategoryStats = arrayToObject(statsResult.filteredCategoryBreakdown || [], allCategories);
+
+            const systemPriorityStats = arrayToObject(statsResult.systemPriorityBreakdown || [], allPriorities);
+            const activePriorityStats = arrayToObject(statsResult.activePriorityBreakdown || [], allPriorities);
+            const unreadPriorityStats = arrayToObject(statsResult.unreadPriorityBreakdown || [], allPriorities);
+            const filteredPriorityStats = arrayToObject(statsResult.filteredPriorityBreakdown || [], allPriorities);
+
+            const systemStatusStats = arrayToObject(statsResult.systemStatusBreakdown || [], allStatuses);
+            const activeStatusStats = arrayToObject(statsResult.activeStatusBreakdown || [], allStatuses);
+            const filteredStatusStats = arrayToObject(statsResult.filteredStatusBreakdown || [], allStatuses);
+
+            // Calculate delivery and read rates
+            const totalInSystem = statsResult.totalAll[0]?.count || 1;
+            const totalDelivered = systemStatusStats.SENT + systemStatusStats.DELIVERED + systemStatusStats.READ;
+            const deliveryRate = Math.round((totalDelivered / totalInSystem) * 100);
+            const readRate = Math.round((systemStatusStats.READ / totalInSystem) * 100);
+
+            // Comprehensive statistics matching getNotifications structure
+            const totalStatistics = {
+                // Basic counts - TOTAL includes deleted
+                total: statsResult.totalAll[0]?.count || 0,
+                totalActive: statsResult.totalActive[0]?.count || 0,
+                totalDeleted: statsResult.totalDeleted[0]?.count || 0,
+                unread: statsResult.unreadActive[0]?.count || 0, // Active unread only
+                unreadAll: statsResult.unreadAll[0]?.count || 0, // Including deleted
+                read: (statsResult.totalActive[0]?.count || 0) - (statsResult.unreadActive[0]?.count || 0),
+
+                // Category statistics
+                byCategory: systemCategoryStats, // All including deleted
+                activeByCategory: activeCategoryStats, // Active only
+                filteredByCategory: filteredCategoryStats, // Based on current filters
+
+                // Priority statistics
+                byPriority: systemPriorityStats, // All including deleted
+                activeByPriority: activePriorityStats, // Active only
+                unreadByPriority: unreadPriorityStats, // Active unread
+                filteredByPriority: filteredPriorityStats, // Based on current filters
+
+                // Status statistics
+                byStatus: systemStatusStats, // All including deleted
+                activeByStatus: activeStatusStats, // Active only
+                filteredByStatus: filteredStatusStats, // Based on current filters
+
+                // Quick access metrics (active only for UI display)
+                critical: activePriorityStats.CRITICAL || 0,
+                urgent: activePriorityStats.URGENT || 0,
+                high: activePriorityStats.HIGH || 0,
+
+                // Performance metrics
+                deliveryRate,
+                readRate,
+                failedCount: systemStatusStats.FAILED || 0,
+                pendingCount: systemStatusStats.PENDING || 0,
+
+                // User statistics
+                topUsers: statsResult.topUsers || [],
+                uniqueUsers: statsResult.topUsers?.length || 0,
+
+                // Recent activity
+                recentActivity: statsResult.recentActivity || [],
+                last7DaysTotal: statsResult.recentActivity?.reduce((sum, day) => sum + day.count, 0) || 0,
+
+                // Filter context
+                isFiltered: !!(search || category || priority || status || showDeleted !== 'false'),
+                activeFilters: {
+                search: search || null,
+                    category: category || null,
+                    priority: priority || null,
+                    status: status || null,
+                    showDeleted: showDeleted || 'false'
+            }
+        };
+
+            const result = {
+                initialNotificationData: notifications,
+                totalStatistics,
+                pagination: {
+                    page,
+                    limit,
+                    totalPages: Math.ceil(totalFiltered / limit),
+                    totalResults: totalFiltered,
+                    hasNextPage: page < Math.ceil(totalFiltered / limit),
+                    hasPrevPage: page > 1
+                }
+            };
+
+            return JSON.parse(JSON.stringify(result));
+
+        } catch (err) {
+            console.error('Notification fetch error:', err);
+            throw new Error('Failed to fetch notifications data');
+        }
+    }
+
+
+    // used with API
+    static async getNotifications(params = {}) {
+        const {
+            page = 1,
+            limit = 100,
+            sortBy = 'createdAt',
+            sortOrder = 'desc',
+            search = '',
+            category = '',
+            priority = '',
+            status = '',
+            showDeleted = 'false' // New parameter
+        } = params;
+
+        try {
+            await dbClient.connect();
+
+            const skip = (page - 1) * limit;
+
+            // Build search/filter pipeline
+            const matchStage = {};
+
+            // Show deleted filter
+            if (showDeleted === 'only') {
+                matchStage['deleted.status'] = true;
+            } else if (showDeleted === 'false') {
+                matchStage['deleted.status'] = false;
+            }
+            // If 'true' or 'all', show both
+
+            // Add filters - Only apply if value exists and is not empty
+            if (category && category.trim() && category !== 'all') {
+                matchStage.category = category;
+            }
+            if (priority && priority.trim() && priority !== 'all') {
+                matchStage.priority = priority;
+            }
+            if (status && status.trim() && status !== 'all') {
+                if (status === 'unread') {
+                    matchStage['read.status'] = false;
+                } else if (status === 'read') {
+                    matchStage['read.status'] = true;
+                } else {
+                    matchStage.status = status;
+                }
+            }
+
+            // Add search functionality
+            if (search && search.trim()) {
+                matchStage.$or = [
+                    {'content.title': {$regex: search.trim(), $options: 'i'}},
+                    {'content.body': {$regex: search.trim(), $options: 'i'}},
+                    {'content.orderRef': {$regex: search.trim(), $options: 'i'}},
+                    {'metadata.orderRef': {$regex: search.trim(), $options: 'i'}}
+                ];
+            }
+
+            // Build aggregation pipeline for notifications
+            const pipeline = [
+                {$match: matchStage},
+                {
+                    $addFields: {
+                        // Priority score for intelligent sorting
+                        priorityScore: {
+                            $switch: {
+                                branches: [
+                                    {case: {$eq: ["$priority", "CRITICAL"]}, then: 1000},
+                                    {case: {$eq: ["$priority", "URGENT"]}, then: 800},
+                                    {case: {$eq: ["$priority", "HIGH"]}, then: 600},
+                                    {case: {$eq: ["$priority", "NORMAL"]}, then: 400},
+                                    {case: {$eq: ["$priority", "LOW"]}, then: 200}
+                                ],
+                                default: 400
+                            }
+                        },
+                        // Read status score (unread = higher priority)
+                        readScore: {
+                            $cond: {
+                                if: {$eq: ["$read.status", false]},
+                                then: 1000,
+                                else: 0
+                            }
+                        },
+                        // Deleted penalty (deleted = lower priority)
+                        deletedPenalty: {
+                            $cond: {
+                                if: {$eq: ["$deleted.status", true]},
+                                then: -5000,
+                                else: 0
+                            }
+                        }
+                    }
+                },
+                {
+                    $addFields: {
+                        finalScore: {
+                            $add: ["$priorityScore", "$readScore", "$deletedPenalty"]
+                        }
+                    }
+                }
+            ];
+
+            // Get total count for pagination
+            const countPipeline = [...pipeline, {$count: "total"}];
+            const [countResult] = await Notification.aggregate(countPipeline);
+            const totalFiltered = countResult?.total || 0;
+
+            // Add sorting and pagination to main pipeline
+            pipeline.push(
+                {
+                    $sort: {
+                        [sortBy === 'priority' ? 'finalScore' : sortBy]: sortOrder === 'desc' ? -1 : 1,
+                        createdAt: -1
+                    }
+                },
+                {$skip: skip},
+                {$limit: limit}
+            );
+
+            const notifications = await Notification.aggregate(pipeline);
+
+            // Define all possible categories, priorities, and statuses
+            const allCategories = ['ORDER', 'DELIVERY', 'SECURITY', 'IDENTITY', 'SYSTEM', 'PAYMENT', 'SOCIAL', 'PROMOTION'];
+            const allPriorities = ['CRITICAL', 'URGENT', 'HIGH', 'NORMAL', 'LOW'];
+            const allStatuses = ['PENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'EXPIRED'];
+
+            // Enhanced comprehensive statistics pipeline
+            const statsPipeline = [
+                {
+                    $facet: {
+                        // Overall system statistics (ALL notifications in DB)
+                        totalAll: [{$count: "count"}],
+                        totalDeleted: [
+                            {$match: {'deleted.status': true}},
+                            {$count: "count"}
+                        ],
+                        totalActive: [
+                            {$match: {'deleted.status': false}},
+                            {$count: "count"}
+                        ],
+                        unreadAll: [
+                            {$match: {'read.status': false}},
+                            {$count: "count"}
+                        ],
+                        unreadActive: [
+                            {$match: {'read.status': false, 'deleted.status': false}},
+                            {$count: "count"}
+                        ],
+
+                        // Category breakdowns
+                        systemCategoryBreakdown: [
+                            {$group: {_id: "$category", count: {$sum: 1}}}
+                        ],
+                        activeCategoryBreakdown: [
+                            {$match: {'deleted.status': false}},
+                            {$group: {_id: "$category", count: {$sum: 1}}}
+                        ],
+                        filteredCategoryBreakdown: [
+                            {$match: matchStage},
+                            {$group: {_id: "$category", count: {$sum: 1}}}
+                        ],
+
+                        // Priority breakdowns
+                        systemPriorityBreakdown: [
+                            {$group: {_id: "$priority", count: {$sum: 1}}}
+                        ],
+                        activePriorityBreakdown: [
+                            {$match: {'deleted.status': false}},
+                            {$group: {_id: "$priority", count: {$sum: 1}}}
+                        ],
+                        unreadPriorityBreakdown: [
+                            {$match: {'read.status': false, 'deleted.status': false}},
+                            {$group: {_id: "$priority", count: {$sum: 1}}}
+                        ],
+                        filteredPriorityBreakdown: [
+                            {$match: matchStage},
+                            {$group: {_id: "$priority", count: {$sum: 1}}}
+                        ],
+
+                        // Status breakdowns
+                        systemStatusBreakdown: [
+                            {$group: {_id: "$status", count: {$sum: 1}}}
+                        ],
+                        activeStatusBreakdown: [
+                            {$match: {'deleted.status': false}},
+                            {$group: {_id: "$status", count: {$sum: 1}}}
+                        ],
+                        filteredStatusBreakdown: [
+                            {$match: matchStage},
+                            {$group: {_id: "$status", count: {$sum: 1}}}
+                        ],
+
+                        // User statistics
+                        topUsers: [
+                            {$group: {_id: "$userId", count: {$sum: 1}}},
+                            {$sort: {count: -1}},
+                            {$limit: 10}
+                        ],
+
+                        // Recent activity (last 7 days)
+                        recentActivity: [
+                            {
+                                $match: {
+                                    createdAt: {$gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)}
+                                }
+                            },
+                            {
+                                $group: {
+                                    _id: {
+                                        $dateToString: {format: "%Y-%m-%d", date: "$createdAt"}
+                                    },
+                                    count: {$sum: 1}
+                                }
+                            },
+                            {$sort: {_id: 1}}
+                        ]
+                    }
+                }
+            ];
+
+            const [statsResult] = await Notification.aggregate(statsPipeline);
+
+            // Helper function to convert array to object with default values
+            const arrayToObject = (array, defaultKeys, defaultValue = 0) => {
+                const result = {};
+                defaultKeys.forEach(key => {
+                    result[key] = defaultValue;
+                });
+                array.forEach(item => {
+                    result[item._id] = item.count;
+                });
+                return result;
+            };
+
+            // Process all statistics
+            const systemCategoryStats = arrayToObject(statsResult.systemCategoryBreakdown || [], allCategories);
+            const activeCategoryStats = arrayToObject(statsResult.activeCategoryBreakdown || [], allCategories);
+            const filteredCategoryStats = arrayToObject(statsResult.filteredCategoryBreakdown || [], allCategories);
+
+            const systemPriorityStats = arrayToObject(statsResult.systemPriorityBreakdown || [], allPriorities);
+            const activePriorityStats = arrayToObject(statsResult.activePriorityBreakdown || [], allPriorities);
+            const unreadPriorityStats = arrayToObject(statsResult.unreadPriorityBreakdown || [], allPriorities);
+            const filteredPriorityStats = arrayToObject(statsResult.filteredPriorityBreakdown || [], allPriorities);
+
+            const systemStatusStats = arrayToObject(statsResult.systemStatusBreakdown || [], allStatuses);
+            const activeStatusStats = arrayToObject(statsResult.activeStatusBreakdown || [], allStatuses);
+            const filteredStatusStats = arrayToObject(statsResult.filteredStatusBreakdown || [], allStatuses);
+
+            // Calculate delivery and read rates
+            const totalInSystem = statsResult.totalAll[0]?.count || 1;
+            const totalDelivered = systemStatusStats.SENT + systemStatusStats.DELIVERED + systemStatusStats.READ;
+            const deliveryRate = Math.round((totalDelivered / totalInSystem) * 100);
+            const readRate = Math.round((systemStatusStats.READ / totalInSystem) * 100);
+
+            // Enhanced comprehensive statistics
+            const totalStatistics = {
+                // Basic counts
+                total: statsResult.totalAll[0]?.count || 0,
+                totalActive: statsResult.totalActive[0]?.count || 0,
+                totalDeleted: statsResult.totalDeleted[0]?.count || 0,
+                unread: statsResult.unreadActive[0]?.count || 0,
+                unreadAll: statsResult.unreadAll[0]?.count || 0,
+                read: (statsResult.totalActive[0]?.count || 0) - (statsResult.unreadActive[0]?.count || 0),
+
+                // Category statistics
+                byCategory: systemCategoryStats,
+                activeByCategory: activeCategoryStats,
+                filteredByCategory: filteredCategoryStats,
+
+                // Priority statistics
+                byPriority: systemPriorityStats,
+                activeByPriority: activePriorityStats,
+                unreadByPriority: unreadPriorityStats,
+                filteredByPriority: filteredPriorityStats,
+
+                // Status statistics
+                byStatus: systemStatusStats,
+                activeByStatus: activeStatusStats,
+                filteredByStatus: filteredStatusStats,
+
+                // Quick access metrics
+                critical: activePriorityStats.CRITICAL || 0,
+                urgent: activePriorityStats.URGENT || 0,
+                high: activePriorityStats.HIGH || 0,
+
+                // Performance metrics
+                deliveryRate,
+                readRate,
+                failedCount: systemStatusStats.FAILED || 0,
+                pendingCount: systemStatusStats.PENDING || 0,
+
+                // User statistics
+                topUsers: statsResult.topUsers || [],
+                uniqueUsers: statsResult.topUsers?.length || 0,
+
+                // Recent activity
+                recentActivity: statsResult.recentActivity || [],
+                last7DaysTotal: statsResult.recentActivity?.reduce((sum, day) => sum + day.count, 0) || 0,
+
+                // Filter context
+                isFiltered: !!(search || category || priority || status || showDeleted !== 'false'),
+                activeFilters: {
+                    search: search || null,
+                    category: category || null,
+                    priority: priority || null,
+                    status: status || null,
+                    showDeleted: showDeleted || 'false'
+                }
+            };
+
+            const result = {
+                success: true,
+                notifications,
+                stats: totalStatistics,
+                pagination: {
+                    page,
+                    limit,
+                    totalPages: Math.ceil(totalFiltered / limit),
+                    totalResults: totalFiltered,
+                    hasNextPage: page < Math.ceil(totalFiltered / limit),
+                    hasPrevPage: page > 1
+                }
+            };
+
+            return JSON.parse(JSON.stringify(result));
+
+        } catch (err) {
+            console.error('Notification fetch error:', err);
+            throw new Error('Failed to fetch notifications data');
+        }
+    }
+
+    /**
+     * Fetches top unread notifications for dropdown/badge display
+     * Optimized for quick loading in navigation components
+     * @param {Object} params - { limit: number }
+     * @returns {Promise<Object>} - Notifications and count data
+     */
+    static async getTopUnreadNotifications(params = {}) {
+        const { limit = 10 } = params;
+
+        try {
+            await dbClient.connect();
+
+            // Get unread notifications with priority sorting
+            const pipeline = [
+                {
+                    $match: {
+                        'deleted.status': false,
+                        'read.status': false
+                    }
+                },
+                {
+                    $addFields: {
+                        // Priority score for intelligent sorting
+                        priorityScore: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ["$priority", "CRITICAL"] }, then: 1000 },
+                                    { case: { $eq: ["$priority", "URGENT"] }, then: 800 },
+                                    { case: { $eq: ["$priority", "HIGH"] }, then: 600 },
+                                    { case: { $eq: ["$priority", "NORMAL"] }, then: 400 },
+                                    { case: { $eq: ["$priority", "LOW"] }, then: 200 }
+                                ],
+                                default: 400
+                            }
+                        }
+                    }
+                },
+                {
+                    $sort: {
+                        priorityScore: -1,
+                        createdAt: -1
+                    }
+                },
+                {
+                    $limit: limit
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        userId: 1,
+                        category: 1,
+                        type: 1,
+                        priority: 1,
+                        content: 1,
+                        metadata: 1,
+                        status: 1,
+                        read: 1,
+                        createdAt: 1,
+                        updatedAt: 1
+                    }
+                }
+            ];
+
+            const notifications = await Notification.aggregate(pipeline);
+
+            // Get total unread count
+            const unreadCount = await Notification.countDocuments({
+                'deleted.status': false,
+                'read.status': false
+            });
+
+            const result = {
+                success: true,
+                notifications,
+                unreadCount,
+                hasUnread: unreadCount > 0,
+                timestamp: new Date().toISOString()
+            };
+
+            return JSON.parse(JSON.stringify(result));
+
+        } catch (err) {
+            console.error('Top notifications fetch error:', err);
+            return {
+                success: false,
+                notifications: [],
+                unreadCount: 0,
+                hasUnread: false,
+                error: err.message
+            };
+        }
+    }
+
+    /**
+     * Marks a notification as read
+     * @param {string} notificationId - The notification ID
+     * @returns {Promise<Object>}
+     */
+    static async markNotificationAsRead(notificationId) {
+        try {
+            await dbClient.connect();
+
+            const result = await Notification.findByIdAndUpdate(
+                notificationId,
+                {
+                    $set: {
+                        'read.status': true,
+                        'read.readAt': new Date()
+                    }
+                },
+                { new: true }
+            );
+
+            if (!result) {
+                return {
+                    success: false,
+                    error: 'Notification not found'
+                };
+            }
+
+            // Emit socket event for real-time update
+            if (global.io && result.userId) {
+                global.io.to(result.userId.toString()).emit('notification:updated', {
+                    notificationId,
+                    action: 'marked_read',
+                    timestamp: new Date()
+                });
+            }
+
+            return {
+                success: true,
+                message: 'Notification marked as read',
+                notification: JSON.parse(JSON.stringify(result))
+            };
+
+        } catch (err) {
+            console.error('Mark as read error:', err);
+            return {
+                success: false,
+                error: err.message
+            };
+        }
+    }
+
+    /**
+     * Marks all unread notifications as read
+     * @returns {Promise<Object>}
+     */
+    static async markAllNotificationsAsRead() {
+        try {
+            await dbClient.connect();
+
+            const result = await Notification.updateMany(
+                {
+                    'deleted.status': false,
+                    'read.status': false
+                },
+                {
+                    $set: {
+                        'read.status': true,
+                        'read.readAt': new Date()
+                    }
+                }
+            );
+
+            // Emit socket event for bulk update
+            if (global.io) {
+                global.io.emit('notification:bulk-update', {
+                    action: 'marked_all_read',
+                    modifiedCount: result.modifiedCount,
+                    timestamp: new Date()
+                });
+            }
+
+            return {
+                success: true,
+                message: `${result.modifiedCount} notifications marked as read`,
+                modifiedCount: result.modifiedCount
+            };
+
+        } catch (err) {
+            console.error('Mark all as read error:', err);
+            return {
+                success: false,
+                error: err.message
+            };
+        }
+    }
+
+    /**
+     * Deletes a notification (soft delete)
+     * @param {string} notificationId - The notification ID
+     * @returns {Promise<Object>}
+     */
+    static async deleteNotification(notificationId) {
+        try {
+            await dbClient.connect();
+
+            const result = await Notification.findByIdAndUpdate(
+                notificationId,
+                {
+                    $set: {
+                        'deleted.status': true,
+                        'deleted.deletedAt': new Date()
+                    }
+                },
+                { new: true }
+            );
+
+            if (!result) {
+                return {
+                    success: false,
+                    error: 'Notification not found'
+                };
+            }
+
+            // Emit socket event
+            if (global.io && result.userId) {
+                global.io.to(result.userId.toString()).emit('notification:updated', {
+                    notificationId,
+                    action: 'deleted',
+                    timestamp: new Date()
+                });
+            }
+
+            return {
+                success: true,
+                message: 'Notification deleted'
+            };
+
+        } catch (err) {
+            console.error('Delete notification error:', err);
+            return {
+                success: false,
+                error: err.message
+            };
+        }
+    }
+
+    /**
+     * Restores a deleted notification
+     * @param {string} notificationId - The notification ID
+     * @returns {Promise<Object>}
+     */
+    static async restoreNotification(notificationId) {
+        try {
+            await dbClient.connect();
+
+            const result = await Notification.findByIdAndUpdate(
+                notificationId,
+                {
+                    $set: {
+                        'deleted.status': false,
+                        'deleted.deletedAt': null
+                    }
+                },
+                { new: true }
+            );
+
+            if (!result) {
+                return {
+                    success: false,
+                    error: 'Notification not found'
+                };
+            }
+
+            // Emit socket event
+            if (global.io && result.userId) {
+                global.io.to(result.userId.toString()).emit('notification:updated', {
+                    notificationId,
+                    action: 'restored',
+                    timestamp: new Date()
+                });
+            }
+
+            return {
+                success: true,
+                message: 'Notification restored',
+                notification: JSON.parse(JSON.stringify(result))
+            };
+
+        } catch (err) {
+            console.error('Restore notification error:', err);
+            return {
+                success: false,
+                error: err.message
+            };
+        }
+    }
+
+
+    /**
+     * Mark single notification as read
+     */
+    static async markAsRead(payload) {
+
+        const {notificationId} = payload;
+        if (!notificationId) throw new Error('Missing required fields');
+
+        try {
+            await dbClient.connect();
+            const notification = await Notification.findOne({
+                _id: notificationId,
+            });
+
+            if (!notification) {
+                throw new Error('Notification not found');
+            }
+
+            notification.read.status = true;
+            notification.read.readAt = new Date();
+            notification.status = 'READ';
+            await notification.save();
+
+            return ({
+                message: 'Notification marked as read',
+                notification
+            });
+        } catch (err) {
+            console.error('Mark as read error:', err);
+            throw new Error('Failed to mark notification as read');
+        }
+    }
+
+    /**
+     * Mark all notifications as read
+     */
+    static async markAllAsRead(payload) {
+        const { id, category } = payload;
+        try {
+            await dbClient.connect();
+            await NotificationService.markAllAsRead(id, category);
+            return ({ success:'All notifications marked as read' });
+        } catch (err) {
+            console.error('Mark all as read error:', err);
+            throw new Error ('Failed to mark all notifications as read');
+        }
+    }
+
+    /**
+     * Soft delete a notification
+     */
+    // static async deleteNotification(payload) {
+    //     const {notificationId} = payload;
+    //
+    //     if (!notificationId) throw new Error('Missing required fields');
+    //
+    //     try {
+    //         await dbClient.connect();
+    //         const notification = await Notification.findOne({
+    //             _id: notificationId,
+    //         });
+    //
+    //         if (!notification) {
+    //             throw new Error('Notification not found');
+    //         }
+    //
+    //         notification.deleted.status = true;
+    //         notification.deleted.deletedAt = new Date();
+    //         await notification.save();
+    //
+    //         return ({ message: 'Notification deleted' });
+    //     } catch (err) {
+    //         console.error('Delete notification error:', err);
+    //         return res.status(500).json({ error: 'Failed to delete notification' });
+    //     }
+    // }
+
+    /**
+     * Delete all notifications (soft delete)
+     */
+    static async deleteAllNotifications(payload) {
+        try {
+            await dbClient.connect();
+            await NotificationService.deleteAllNotifications(payload.userId);
+            return ({ message: 'All notifications deleted' });
+        } catch (err) {
+            console.error('Delete all notifications error:', err);
+            throw new Error ('Failed to delete all notifications');
+        }
+    }
+
+    /**
+     * ADMIN ONLY: Permanently delete soft-deleted notifications
+     * This is the final cleanup that removes notifications from DB
+     */
+    static async permanentlyDeleteNotifications(payload) {
+        try {
+            await dbClient.connect();
+            const { notificationIds = [], deleteAll = false } = payload;
+
+            let result;
+            if (deleteAll) {
+                // Delete all soft-deleted notifications across all users
+                result = await Notification.deleteMany({
+                    'deleted.status': true
+                });
+            } else if (notificationIds.length > 0) {
+                // Delete specific notifications
+                result = await Notification.deleteMany({
+                    _id: { $in: notificationIds },
+                    'deleted.status': true
+                });
+            } else {
+                return ({
+                    error: 'Either provide notificationIds or set deleteAll to true'
+                });
+            }
+
+            return ({message: 'Notifications permanently deleted'});
+        } catch (err) {
+            console.error('Permanent delete error:', err);
+            throw Error('Failed to permanently delete notifications');
+        }
+    }
+
+    /**
+     * Get notification statistics for admin dashboard
+     */
+    static async getNotificationStatistics(payload) {
+        const { userData } = payload
+        try {
+            await dbClient.connect();
+            const stats = await NotificationService.getNotificationStats(userData._id);
+
+            // Get additional admin-specific stats
+            const [categoryBreakdown, statusBreakdown, recentActivity] = await Promise.all([
+                Notification.aggregate([
+                    { $match: { userId: userData._id, 'deleted.status': false } },
+                    { $group: { _id: '$category', count: { $sum: 1 } } }
+                ]),
+                Notification.aggregate([
+                    { $match: { userId: userData._id, 'deleted.status': false } },
+                    { $group: { _id: '$status', count: { $sum: 1 } } }
+                ]),
+                Notification.find({
+                    userId: userData._id,
+                    'deleted.status': false
+                })
+                    .sort({ createdAt: -1 })
+                    .limit(10)
+                    .lean()
+            ]);
+
+            return({
+                ...stats,
+                categoryBreakdown: categoryBreakdown.reduce((acc, item) => {
+                    acc[item._id] = item.count;
+                    return acc;
+                }, {}),
+                statusBreakdown: statusBreakdown.reduce((acc, item) => {
+                    acc[item._id] = item.count;
+                    return acc;
+                }, {}),
+                recentActivity
+            });
+        } catch (err) {
+            console.error('Get statistics error:', err);
+            return ({ error: 'Failed to fetch statistics' });
+        }
+    }
+
+    /**
+     * Create a notification for a specific user (admin action)
+     * Used when admin needs to send notifications to drivers/clients
+     */
+    static async createNotificationForUser(req, res) {
+        try {
+            await dbClient.connect();
+            const {
+                targetUserId,
+                type,
+                customContent,
+                metadata = {},
+                priority = 'NORMAL'
+            } = req.body;
+
+            if (!targetUserId || !type) {
+                return res.status(400).json({
+                    error: 'targetUserId and type are required'
+                });
+            }
+
+            const notification = await NotificationService.createNotification({
+                userId: targetUserId,
+                type,
+                customContent,
+                metadata: {
+                    ...metadata,
+                    source: 'admin',
+                    adminId: userData._id
+                },
+                priority
+            });
+
+            return res.status(201).json({
+                message: 'Notification created successfully',
+                notification
+            });
+        } catch (err) {
+            console.error('Create notification error:', err);
+            return res.status(500).json({ error: 'Failed to create notification' });
+        }
     }
 }
 
