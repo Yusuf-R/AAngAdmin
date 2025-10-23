@@ -139,7 +139,7 @@ class AdminUtils {
             console.log({err});
             throw new Error(err);
         }
-        
+
     }
 
     static async adminReviewOrder(obj) {
@@ -205,7 +205,7 @@ class AdminUtils {
      * @param {string} strategy - 'keep-recent-5', 'remove-stale', 'delete-all'
      */
     static async cleanupUserSessions(userId, strategy) {
-        const payload={userId, strategy}
+        const payload = {userId, strategy}
         try {
             const response = await axiosPrivate({
                 method: "POST",
@@ -406,7 +406,7 @@ class AdminUtils {
     /**
      * Fetch admin notifications with filters
      */
-  static async getNotifications(filters = {}) {
+    static async getNotifications(filters = {}) {
         try {
             const response = await axiosPrivate({
                 method: 'GET',
@@ -423,18 +423,17 @@ class AdminUtils {
     /**
      * Get top 5 unread notifications for navbar
      */
-    static async getTopUnreadNotifications(params) {
+    static async getTopUnreadNotifications() {
         try {
             const response = await axiosPrivate({
                 method: 'GET',
                 url: `/admin/notifications/top`,
-                params: params
             });
 
             return response.data;
         } catch (error) {
             console.error('Get top unread notifications error:', error);
-            return { success: false, error: error.message };
+            return {success: false, error: error.message};
         }
     }
 
@@ -452,7 +451,7 @@ class AdminUtils {
             return response.data;
         } catch (error) {
             console.error('Read notifications error:', error);
-            return { success: false, error: error.message };
+            return {success: false, error: error.message};
         }
     }
 
@@ -470,7 +469,7 @@ class AdminUtils {
             return response.data;
         } catch (error) {
             console.error('Mark all-as read notifications error:', error);
-            return { success: false, error: error.message };
+            return {success: false, error: error.message};
         }
     }
 
@@ -488,11 +487,11 @@ class AdminUtils {
             return response.data;
         } catch (error) {
             console.error('Delete notifications error:', error);
-            return { success: false, error: error.message };
+            return {success: false, error: error.message};
         }
     }
 
-    static async restoreNotification (notificationId) {
+    static async restoreNotification(notificationId) {
         try {
             const response = await axiosPrivate({
                 method: 'PATCH',
@@ -503,7 +502,7 @@ class AdminUtils {
             return response.data;
         } catch (error) {
             console.error('Delete notifications error:', error);
-            return { success: false, error: error.message };
+            return {success: false, error: error.message};
         }
     }
 
@@ -520,7 +519,7 @@ class AdminUtils {
             return response.data;
         } catch (error) {
             console.error('Delete all notifications error:', error);
-            return { success: false, error: error.message };
+            return {success: false, error: error.message};
         }
     }
 
@@ -540,7 +539,7 @@ class AdminUtils {
             return response.data;
         } catch (error) {
             console.error('Permanent Delete notifications error:', error);
-            return { success: false, error: error.message };
+            return {success: false, error: error.message};
         }
     }
 
@@ -557,7 +556,7 @@ class AdminUtils {
             return response.data;
         } catch (error) {
             console.error('Get statistics notifications error:', error);
-            return { success: false, error: error.message };
+            return {success: false, error: error.message};
         }
     }
 
@@ -575,7 +574,7 @@ class AdminUtils {
             return response.data;
         } catch (error) {
             console.error('Create notifications error:', error);
-            return { success: false, error: error.message };
+            return {success: false, error: error.message};
         }
 
     }
@@ -593,14 +592,14 @@ class AdminUtils {
         if (diffMin < 1440) return `${Math.floor(diffMin / 60)}h ago`;
         if (diffMin < 10080) return `${Math.floor(diffMin / 1440)}d ago`;
 
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return d.toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
     }
 
     /**
      * Get notification icon and color based on category and type
      */
     static getNotificationMeta(notification) {
-        const { category, priority, type } = notification;
+        const {category, priority, type} = notification;
 
         const priorityColors = {
             CRITICAL: 'text-red-600 bg-red-50 dark:bg-red-500/10',
@@ -626,6 +625,175 @@ class AdminUtils {
             color: priorityColors[priority] || priorityColors.NORMAL,
             priority
         };
+    }
+
+    // Chat
+
+    // get all the chat conversation
+    static async getConversations(params) {
+        try {
+            const response = await axiosPrivate({
+                method: 'GET',
+                url: `/admin/support/chat`,
+                params: params
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Get conversation error:', error);
+            return {success: false, error: error.message};
+        }
+    }
+
+    /**
+     * Search users
+     */
+    static async searchUsers(params) {
+        console.log(params);
+        try {
+            const response = await axiosPrivate({
+                method: 'GET',
+                url: `/admin/support/chat/search`,
+                params: { params }
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Search user error:', error);
+            return {success: false, error: error.message};
+        }
+    }
+
+
+    static async getMessages(id) {
+        try {
+            const response = await axiosPrivate({
+                method: 'GET',
+                url: `/admin/support/chat/message/get`,
+                params: { id }
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Get message error:', error);
+            return {success: false, error: error.message};
+        }
+    }
+
+    static async sendMessage(conversationId, messageData) {
+        try {
+            const response = await axiosPrivate({
+                method: 'POST',
+                url: `/admin/support/chat/message/send`,
+                data: {
+                    conversationId,
+                    messageData
+                }
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Send message error:', error);
+            return {success: false, error: error.message};
+        }
+    }
+
+    static async markChatAsRead(conversationId, lastReadSeq) {
+        try {
+            const response = await axiosPrivate({
+                method: 'POST',
+                url: `/admin/support/chat/message/read`,
+                data: {
+                    conversationId,
+                    lastReadSeq
+                }
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('mark chat as read error:', error);
+            return {success: false, error: error.message};
+        }
+    }
+
+    static async togglePin(conversationId) {
+        try {
+            const response = await axiosPrivate({
+                method: 'POST',
+                url: `/admin/support/chat/toggle-pin`,
+                data: {conversationId}
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Toogel pin erro:', error);
+            return {success: false, error: error.message};
+        }
+    }
+
+    static async deleteConversation(conversationId) {
+        try {
+            const response = await axiosPrivate({
+                method: 'DELETE',
+                url: `/admin/support/chat/delete`,
+                data: {conversationId}
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Delete conversation error:', error);
+            return {success: false, error: error.message};
+        }
+    }
+
+    static async deleteFromHistory(conversationId) {
+        try {
+            const response = await axiosPrivate({
+                method: 'DELETE',
+                url: `/admin/support/chat/history/delete`,
+                data: { conversationId }
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Delete from history', error);
+            return {success: false, error: error.message};
+        }
+    }
+
+    static async createConversation(targetUserId, targetRole, orderId = null) {
+        try {
+            const response = await axiosPrivate({
+                method: 'POST',
+                url: `/admin/support/chat/create`,
+                data: {
+                    targetUserId,
+                    targetRole,
+                    orderId,
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Creat conversation error:', error);
+            return {success: false, error: error.message};
+        }
+    }
+
+    static async getOrCreateConversation(targetUserId, orderId = null) {
+        try {
+            const response = await axiosPrivate({
+                method: 'POST',
+                url: `/admin/support/chat/get-or-create`,
+                data: {
+                    targetUserId,
+                    orderId,
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Get-Create error:', error);
+            return {success: false, error: error.message};
+        }
     }
 
 }

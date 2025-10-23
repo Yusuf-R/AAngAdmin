@@ -695,7 +695,6 @@ export default function AdvancedOrderManagement({initialOrderData, totalStatisti
     const [initialLoad, setInitialLoad] = useState(true);
 
     const handleOrderAction = useCallback((orderId, action) => {
-        console.log(`Action: ${action} on order: ${orderId}`);
         // Implement actual actions here
         switch (action) {
             case "approve":

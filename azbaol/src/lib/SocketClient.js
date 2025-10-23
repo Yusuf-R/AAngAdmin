@@ -103,10 +103,15 @@ class SocketClient {
             this.emitEvent('error', { error: error.message, timestamp: new Date() });
         });
 
-        // Business events
+        // Business events -- Notifications -- Chats -- System
+
+        // Notifications
         this.socket.on('notification:new', (data) => this.emitEvent('notification', data));
+
+        //Orders
         this.socket.on('order:updated', (data) => this.emitEvent('order-update', data));
 
+        // Test conn
         this.socket.on('pong', (data) => {
             const latency = Date.now() - data.clientTime;
             this.latencyTests.push(latency);

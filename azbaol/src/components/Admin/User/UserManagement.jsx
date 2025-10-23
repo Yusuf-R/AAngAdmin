@@ -23,7 +23,8 @@ import {
     Trash2,
     Truck,
     UserCheck,
-    Users
+    Users,
+    MessageCircle,
 } from "lucide-react";
 import {useEffect, useMemo, useState} from "react";
 import UserCreationModal from "./UserCreationModal";
@@ -62,7 +63,7 @@ function UserManagementSystem({allUsersData}) {
     const [sortOrder, setSortOrder] = useState("desc");
     const [currentPage, setCurrentPage] = useState(1);
     const [showCreateModal, setShowCreateModal] = useState(false);
-    const itemsPerPage = 10; // Changed from 1 to 10 for better UX
+    const itemsPerPage = 100; // Changed from 1 to 10 for better UX
 
     // Debounce search term to avoid too many API calls
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -157,6 +158,10 @@ function UserManagementSystem({allUsersData}) {
 
         if (action === 'viewValidation') {
             router.push(`/admin/users/view/validation/${userId}`)
+        }
+
+        if ( action === 'chat') {
+            router.push(`/admin/support/chat/${userId}`)
         }
     };
     const handleDeleteUser = async (payload) => {

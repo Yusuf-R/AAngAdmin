@@ -60,10 +60,62 @@ const priorityStyles = {
     LOW: { bg: "bg-gray-600", text: "text-white" }
 };
 
+const adminActionMeta = {
+    REVIEW: { label: "Review", color: "bg-blue-500/10 text-blue-600" },
+    APPROVE: { label: "Approve", color: "bg-green-500/10 text-green-600" },
+    ASSIGN: { label: "Assign", color: "bg-purple-500/10 text-purple-600" },
+    RESOLVE: { label: "Resolve", color: "bg-orange-500/10 text-orange-600" },
+    ACKNOWLEDGE: { label: "Acknowledge", color: "bg-indigo-500/10 text-indigo-600" },
+    INVESTIGATE: { label: "Investigate", color: "bg-red-500/10 text-red-600" },
+    CONFIGURE: { label: "Configure", color: "bg-yellow-500/10 text-yellow-600" },
+    RESPOND: { label: "Respond", color: "bg-pink-500/10 text-pink-600" }
+};
+
+const adminActionStatusStyles = {
+    PENDING: {
+        bg: "bg-amber-100 dark:bg-amber-500/20",
+        text: "text-amber-800 dark:text-amber-300",
+        border: "border-amber-300",
+        animate: true
+    },
+    IN_PROGRESS: {
+        bg: "bg-blue-100 dark:bg-blue-500/20",
+        text: "text-blue-800 dark:text-blue-300",
+        border: "border-blue-300",
+        animate: false
+    },
+    COMPLETED: {
+        bg: "bg-green-100 dark:bg-green-500/20",
+        text: "text-green-800 dark:text-green-300",
+        border: "border-green-300",
+        animate: false
+    },
+    REJECTED: {
+        bg: "bg-red-100 dark:bg-red-500/20",
+        text: "text-red-800 dark:text-red-300",
+        border: "border-red-300",
+        animate: false
+    },
+    ESCALATED: {
+        bg: "bg-purple-100 dark:bg-purple-500/20",
+        text: "text-purple-800 dark:text-purple-300",
+        border: "border-purple-300",
+        animate: true
+    }
+};
+
+const adminActionUrgencyStyles = {
+    IMMEDIATE: { color: "text-red-600", bg: "bg-red-500/10" },
+    TODAY: { color: "text-orange-600", bg: "bg-orange-500/10" },
+    THIS_WEEK: { color: "text-blue-600", bg: "bg-blue-500/10" },
+    WHENEVER: { color: "text-gray-600", bg: "bg-gray-500/10" }
+};
+
 function NotificationActions({ notification, onAction }) {
     const router = useRouter();
     const isUnread = !notification.read?.status;
     const isDeleted = notification.deleted?.status;
+
 
     return (
         <DropdownMenu>
@@ -192,6 +244,71 @@ function createColumns(onAction) {
             },
         },
         {
+            id: "adminAction",
+            header: "Admin Action",
+            cell: ({ row }) => {
+                const notification = row.original;
+                const adminAction = notification.adminAction;
+
+                if (!adminAction?.required) {
+                    return (
+                        <div className="flex flex-col items-center text-center">
+                            <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-300">
+                                Not Required
+                            </Badge>
+                        </div>
+                    );
+                }
+
+                const actionMeta = adminActionMeta[adminAction.actionType] || adminActionMeta.REVIEW;
+                const statusStyle = adminActionStatusStyles[adminAction.status] || adminActionStatusStyles.PENDING;
+                const urgencyStyle = adminActionUrgencyStyles[adminAction.urgency] || adminActionUrgencyStyles.WHENEVER;
+
+                return (
+                    <div className="space-y-2 min-w-[200px]">
+                        {/* Action Type */}
+                        <div className="flex items-center gap-2">
+                            <Badge
+                                variant="outline"
+                                className={`${actionMeta.color} border-current/20 text-xs font-medium`}
+                            >
+                                {actionMeta.label}
+                            </Badge>
+                        </div>
+
+                        {/* Status with animation */}
+                        <div className="flex items-center gap-2">
+                            <Badge
+                                variant="outline"
+                                className={`${statusStyle.bg} ${statusStyle.text} ${statusStyle.border} text-xs font-medium ${
+                                    statusStyle.animate ? 'animate-pulse' : ''
+                                }`}
+                            >
+                                {adminAction.status}
+                            </Badge>
+                        </div>
+
+                        {/* Urgency */}
+                        <div className="flex items-center gap-2">
+                            <Badge
+                                variant="outline"
+                                className={`${urgencyStyle.bg} ${urgencyStyle.color} border-current/20 text-xs`}
+                            >
+                                {adminAction.urgency}
+                            </Badge>
+                        </div>
+
+                        {/* Target Role */}
+                        {adminAction.targetRole && (
+                            <div className="text-xs text-muted-foreground">
+                                For: {adminAction.targetRole.replace('_', ' ')}
+                            </div>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
             accessorKey: "priority",
             header: "Priority",
             cell: ({ row }) => {
@@ -262,6 +379,9 @@ export default function NotificationManagement({
         priority: '',
         status: '',
         showDeleted: 'false',
+        adminActionRequired: '',
+        adminActionStatus: '',
+        adminActionUrgency: '',
         page: 1,
         limit: 100,
         sortBy: 'createdAt',
@@ -293,7 +413,7 @@ export default function NotificationManagement({
                 break;
             case 'view':
                 // Open notification detail modal or page
-                toast.info('View notification details');
+                router.push(`/admin/notifications/view/${notificationId}`)
                 break;
         }
     }, [serverFilters]);
@@ -423,7 +543,7 @@ export default function NotificationManagement({
                 </div>
 
                 {/* Enhanced Statistics */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <StatCard
                         icon={Bell}
                         label="Total (All)"
@@ -458,6 +578,13 @@ export default function NotificationManagement({
                         value={(stats.critical || 0) + (stats.urgent || 0)}
                         subtitle="High priority active"
                         chipClass="bg-red-100 text-red-600 dark:bg-red-500/20"
+                    />
+                    <StatCard
+                        icon={AlertTriangle}
+                        label="Admin Actions"
+                        value={stats.adminAction?.pending || 0}
+                        subtitle={`${stats.adminAction?.required || 0} total, ${stats.adminAction?.overdue || 0} overdue`}
+                        chipClass="bg-purple-100 text-purple-600 dark:bg-purple-500/20"
                     />
                 </div>
             </div>
@@ -527,18 +654,18 @@ export default function NotificationManagement({
 
             {/* Filters */}
             <div className="bg-card rounded-2xl border p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-8 ">
                     <div className="flex items-center space-x-4 flex-1 flex-wrap gap-y-3">
                         {/* Search */}
-                        <div className="flex items-center space-x-2">
-                            <div className="relative">
+                        <div className="flex items-center space-x-2 w-[80%]">
+                            <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                                 <Input
                                     placeholder="Search notifications..."
                                     value={searchInput}
                                     onChange={(e) => setSearchInput(e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                                    className="pl-10 max-w-sm"
+                                    className="pl-10 w-full"
                                     disabled={isLoading}
                                 />
                             </div>
@@ -551,7 +678,11 @@ export default function NotificationManagement({
                                 </Button>
                             )}
                         </div>
+                    </div>
+                </div>
 
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-4 flex-1 flex-wrap gap-y-3">
                         {/* Category Filter */}
                         <Select
                             value={serverFilters.category || "all"}
@@ -646,27 +777,103 @@ export default function NotificationManagement({
                                 </SelectItem>
                             </SelectContent>
                         </Select>
-                    </div>
 
-                    {/* Column visibility */}
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="outline">
-                                Columns <ChevronDown className="ml-2 h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            {table.getAllColumns().filter(col => col.getCanHide()).map(column => (
-                                <DropdownMenuCheckboxItem
-                                    key={column.id}
-                                    checked={column.getIsVisible()}
-                                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                                >
-                                    {column.id}
-                                </DropdownMenuCheckboxItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                        {/* Admin Action Required Filter */}
+                        <Select
+                            value={serverFilters.adminActionRequired || "all"}
+                            onValueChange={(value) => setServerFilters(prev => ({
+                                ...prev,
+                                adminActionRequired: value === "all" ? '' : value,
+                                page: 1
+                            }))}
+                        >
+                            <SelectTrigger className="w-48">
+                                <SelectValue placeholder="Admin Action" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Actions</SelectItem>
+                                <SelectItem value="true">
+                                    <div className="flex items-center gap-2">
+                                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                                        Requires Admin Action
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="false">
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                        No Admin Action
+                                    </div>
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        {/* Admin Action Status Filter - Only show if admin action is required */}
+                        {serverFilters.adminActionRequired === 'true' && (
+                            <Select
+                                value={serverFilters.adminActionStatus || "all"}
+                                onValueChange={(value) => setServerFilters(prev => ({
+                                    ...prev,
+                                    adminActionStatus: value === "all" ? '' : value,
+                                    page: 1
+                                }))}
+                            >
+                                <SelectTrigger className="w-48">
+                                    <SelectValue placeholder="Action Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Statuses</SelectItem>
+                                    <SelectItem value="PENDING">Pending</SelectItem>
+                                    <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                                    <SelectItem value="COMPLETED">Completed</SelectItem>
+                                    <SelectItem value="REJECTED">Rejected</SelectItem>
+                                    <SelectItem value="ESCALATED">Escalated</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        )}
+
+                        {/* Admin Action Urgency Filter - Only show if admin action is required */}
+                        {serverFilters.adminActionRequired === 'true' && (
+                            <Select
+                                value={serverFilters.adminActionUrgency || "all"}
+                                onValueChange={(value) => setServerFilters(prev => ({
+                                    ...prev,
+                                    adminActionUrgency: value === "all" ? '' : value,
+                                    page: 1
+                                }))}
+                            >
+                                <SelectTrigger className="w-48">
+                                    <SelectValue placeholder="Action Urgency" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Urgencies</SelectItem>
+                                    <SelectItem value="IMMEDIATE">Immediate</SelectItem>
+                                    <SelectItem value="TODAY">Today</SelectItem>
+                                    <SelectItem value="THIS_WEEK">This Week</SelectItem>
+                                    <SelectItem value="WHENEVER">Whenever</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        )}
+
+                        {/* Column visibility */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline">
+                                    Columns <ChevronDown className="ml-2 h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                {table.getAllColumns().filter(col => col.getCanHide()).map(column => (
+                                    <DropdownMenuCheckboxItem
+                                        key={column.id}
+                                        checked={column.getIsVisible()}
+                                        onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                                    >
+                                        {column.id}
+                                    </DropdownMenuCheckboxItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
                 </div>
 
                 <div className="text-sm text-muted-foreground flex items-center gap-2">
@@ -693,6 +900,28 @@ export default function NotificationManagement({
                         <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200">
                             <CheckCircle2 className="w-3 h-3" />
                             Active only
+                        </Badge>
+                    )}
+                    {serverFilters.adminActionRequired === 'true' && (
+                        <Badge variant="secondary" className="gap-1 bg-amber-50 text-amber-700 border-amber-200">
+                            <AlertTriangle className="w-3 h-3" />
+                            Requires Admin Action
+                        </Badge>
+                    )}
+                    {serverFilters.adminActionRequired === 'false' && (
+                        <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200">
+                            <CheckCircle2 className="w-3 h-3" />
+                            No Admin Action
+                        </Badge>
+                    )}
+                    {serverFilters.adminActionStatus && (
+                        <Badge variant="outline" className="gap-1 capitalize">
+                            {serverFilters.adminActionStatus.toLowerCase().replace('_', ' ')}
+                        </Badge>
+                    )}
+                    {serverFilters.adminActionUrgency && serverFilters.adminActionUrgency !== 'all' && (
+                        <Badge variant="outline" className="gap-1">
+                            {serverFilters.adminActionUrgency.toLowerCase()}
                         </Badge>
                     )}
                 </div>
@@ -734,9 +963,17 @@ export default function NotificationManagement({
                                             className={`hover:bg-muted/50 transition-colors ${
                                                 isDeleted
                                                     ? 'bg-red-50/30 dark:bg-red-500/5 opacity-70'
-                                                    : isUnread
-                                                        ? 'bg-blue-50/50 dark:bg-blue-500/5'
-                                                        : ''
+                                                    : row.original.adminAction?.required
+                                                        ? row.original.adminAction.status === 'PENDING'
+                                                            ? 'bg-amber-50/50 dark:bg-amber-500/5 border-l-4 border-amber-400'
+                                                            : row.original.adminAction.status === 'ESCALATED'
+                                                                ? 'bg-purple-50/50 dark:bg-purple-500/5 border-l-4 border-purple-400'
+                                                                : row.original.adminAction.status === 'IN_PROGRESS'
+                                                                    ? 'bg-blue-50/50 dark:bg-blue-500/5 border-l-4 border-blue-400'
+                                                                    : 'bg-green-50/50 dark:bg-green-500/5'
+                                                        : isUnread
+                                                            ? 'bg-blue-50/50 dark:bg-blue-500/5'
+                                                            : ''
                                             }`}
                                         >
                                             {row.getVisibleCells().map((cell) => (
@@ -768,6 +1005,9 @@ export default function NotificationManagement({
                                                             priority: '',
                                                             status: '',
                                                             showDeleted: 'false',
+                                                            adminActionRequired: '',
+                                                            adminActionStatus: '',
+                                                            adminActionUrgency: '',
                                                             page: 1,
                                                             limit: 100,
                                                             sortBy: 'createdAt',

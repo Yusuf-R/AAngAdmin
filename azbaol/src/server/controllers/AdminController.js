@@ -9,21 +9,21 @@ import Notification from "@/server/models/Notification"
 import NotificationService from "@/server/services/NotificationService"
 import {NextResponse} from "next/server";
 
-const { Admin, AAngBase, Driver } = await getModels()
 const {Order} = await getOrderModels();
+const {Admin, AAngBase, Driver} = await getModels()
 await dbClient.connect();
 
 class AdminController {
 
     /**
- * Retrieves the admin profile by admin ID, excluding sensitive fields.
- * Establishes a database connection, fetches the admin document by ID,
- * omitting the password, and handles errors if the admin is not found.
- *
- * @param {string} adminId - The unique identifier of the admin.
- * @returns {Promise<Object>} The admin profile data without the password field.
- * @throws {Error} If the admin is not found or fetching fails.
- */
+     * Retrieves the admin profile by admin ID, excluding sensitive fields.
+     * Establishes a database connection, fetches the admin document by ID,
+     * omitting the password, and handles errors if the admin is not found.
+     *
+     * @param {string} adminId - The unique identifier of the admin.
+     * @returns {Promise<Object>} The admin profile data without the password field.
+     * @throws {Error} If the admin is not found or fetching fails.
+     */
     static async adminProfile(adminId) {
         try {
             await dbClient.connect();
@@ -80,7 +80,7 @@ class AdminController {
      *
      */
     static async allUser(params) {
-        const {page = 10, limit = 50, search, role, status, sortBy = 'createdAt', sortOrder = 'desc'} = params;
+        const {page = 10, limit = 100, search, role, status, sortBy = 'createdAt', sortOrder = 'desc'} = params;
 
         try {
             await dbClient.connect();
@@ -249,7 +249,7 @@ class AdminController {
 
     static async userAccountAction(payload, action) {
         try {
-            const { userId } = payload
+            const {userId} = payload
             await dbClient.connect();
             await AAngBase.findByIdAndUpdate(
                 {_id: userId},
@@ -258,7 +258,7 @@ class AdminController {
                 }
             )
             return ({
-                message: `User account has been ${ action }`
+                message: `User account has been ${action}`
             })
         } catch (err) {
             console.log(err.message);
@@ -272,7 +272,7 @@ class AdminController {
             await dbClient.connect();
             await AAngBase.findByIdAndDelete({_id: userId})
             return ({
-                message: `User account has been ${ action }`
+                message: `User account has been ${action}`
             })
         } catch (err) {
             console.log(err.message);
@@ -1045,7 +1045,7 @@ class AdminController {
 
         try {
             await dbClient.connect();
-            const { Order } = await getOrderModels();
+            const {Order} = await getOrderModels();
             const clientData = await AdminController.getDataById(clientId);
 
             const skip = (page - 1) * limit;
@@ -1061,12 +1061,12 @@ class AdminController {
             // Add search functionality
             if (search && search.trim()) {
                 searchMatchStage.$or = [
-                    { orderRef: { $regex: search.trim(), $options: 'i' } },
-                    { "package.description": { $regex: search.trim(), $options: 'i' } },
-                    { "location.pickUp.address": { $regex: search.trim(), $options: 'i' } },
-                    { "location.dropOff.address": { $regex: search.trim(), $options: 'i' } },
-                    { "location.pickUp.landmark": { $regex: search.trim(), $options: 'i' } },
-                    { "location.dropOff.landmark": { $regex: search.trim(), $options: 'i' } }
+                    {orderRef: {$regex: search.trim(), $options: 'i'}},
+                    {"package.description": {$regex: search.trim(), $options: 'i'}},
+                    {"location.pickUp.address": {$regex: search.trim(), $options: 'i'}},
+                    {"location.dropOff.address": {$regex: search.trim(), $options: 'i'}},
+                    {"location.pickUp.landmark": {$regex: search.trim(), $options: 'i'}},
+                    {"location.dropOff.landmark": {$regex: search.trim(), $options: 'i'}}
                 ];
             }
 
@@ -1084,7 +1084,7 @@ class AdminController {
             // Build aggregation pipeline
             const pipeline = [
                 // Apply client filter and search/filters
-                { $match: searchMatchStage },
+                {$match: searchMatchStage},
 
                 {
                     $addFields: {
@@ -1093,43 +1093,43 @@ class AdminController {
                             $switch: {
                                 branches: [
                                     {
-                                        case: { $eq: ["$status", "admin_review"] },
+                                        case: {$eq: ["$status", "admin_review"]},
                                         then: 1000
                                     },
                                     {
-                                        case: { $eq: ["$status", "admin_rejected"] },
+                                        case: {$eq: ["$status", "admin_rejected"]},
                                         then: 950
                                     },
                                     {
-                                        case: { $in: ["$status", ["broadcast", "pending"]] },
+                                        case: {$in: ["$status", ["broadcast", "pending"]]},
                                         then: 800
                                     },
                                     {
-                                        case: { $in: ["$status", ["assigned", "confirmed"]] },
+                                        case: {$in: ["$status", ["assigned", "confirmed"]]},
                                         then: 750
                                     },
                                     {
-                                        case: { $in: ["$status", ["en_route_pickup", "arrived_pickup"]] },
+                                        case: {$in: ["$status", ["en_route_pickup", "arrived_pickup"]]},
                                         then: 700
                                     },
                                     {
-                                        case: { $in: ["$status", ["picked_up", "in_transit", "arrived_dropoff"]] },
+                                        case: {$in: ["$status", ["picked_up", "in_transit", "arrived_dropoff"]]},
                                         then: 600
                                     },
                                     {
-                                        case: { $eq: ["$status", "delivered"] },
+                                        case: {$eq: ["$status", "delivered"]},
                                         then: 400
                                     },
                                     {
-                                        case: { $in: ["$status", ["failed", "returned"]] },
+                                        case: {$in: ["$status", ["failed", "returned"]]},
                                         then: 350
                                     },
                                     {
-                                        case: { $eq: ["$status", "cancelled"] },
+                                        case: {$eq: ["$status", "cancelled"]},
                                         then: 200
                                     },
                                     {
-                                        case: { $eq: ["$status", "draft"] },
+                                        case: {$eq: ["$status", "draft"]},
                                         then: 100
                                     }
                                 ],
@@ -1138,7 +1138,7 @@ class AdminController {
                         },
                         recencyBonus: {
                             $divide: [
-                                { $subtract: [new Date(), "$createdAt"] },
+                                {$subtract: [new Date(), "$createdAt"]},
                                 1000 * 60 * 60 * 24
                             ]
                         }
@@ -1149,7 +1149,7 @@ class AdminController {
                         finalScore: {
                             $subtract: [
                                 "$priorityScore",
-                                { $multiply: ["$recencyBonus", 0.1] }
+                                {$multiply: ["$recencyBonus", 0.1]}
                             ]
                         }
                     }
@@ -1157,7 +1157,7 @@ class AdminController {
             ];
 
             // Get total count for pagination (before skip/limit)
-            const countPipeline = [...pipeline, { $count: "total" }];
+            const countPipeline = [...pipeline, {$count: "total"}];
             const [countResult] = await Order.aggregate(countPipeline);
             const totalFilteredOrders = countResult?.total || 0;
 
@@ -1169,8 +1169,8 @@ class AdminController {
                         createdAt: -1
                     }
                 },
-                { $skip: skip },
-                { $limit: limit },
+                {$skip: skip},
+                {$limit: limit},
                 {
                     $project: {
                         deliveryToken: 0,
@@ -1183,22 +1183,22 @@ class AdminController {
 
             // Get client-specific statistics
             const statsPipeline = [
-                { $match: baseMatchStage },
+                {$match: baseMatchStage},
                 {
                     $facet: {
-                        totalAllOrders: [{ $count: "count" }],
+                        totalAllOrders: [{$count: "count"}],
                         statusBreakdown: [
-                            { $group: { _id: "$status", count: { $sum: 1 } } }
+                            {$group: {_id: "$status", count: {$sum: 1}}}
                         ],
                         revenueStats: [
                             {
-                                $match: { "payment.status": "paid" }
+                                $match: {"payment.status": "paid"}
                             },
                             {
                                 $group: {
                                     _id: null,
-                                    revenue: { $sum: "$pricing.totalAmount" },
-                                    totalOrders: { $sum: 1 }
+                                    revenue: {$sum: "$pricing.totalAmount"},
+                                    totalOrders: {$sum: 1}
                                 }
                             }
                         ]
@@ -1622,11 +1622,11 @@ class AdminController {
      * Get users for deletion interface with search and pagination
      */
     static async getUsersForDeletion(params = {}) {
-        const { page = 1, limit = 100, search = '' } = params;
+        const {page = 1, limit = 100, search = ''} = params;
 
         try {
             await dbClient.connect();
-            const { AAngBase } = await getModels();
+            const {AAngBase} = await getModels();
 
             const skip = (page - 1) * limit;
             let searchQuery = {};
@@ -1639,9 +1639,9 @@ class AdminController {
                 const isObjectId = /^[0-9a-fA-F]{24}$/.test(searchTrim);
 
                 searchQuery.$or = [
-                    { email: { $regex: searchTrim, $options: 'i' } },
-                    { fullName: { $regex: searchTrim, $options: 'i' } },
-                    ...(isObjectId ? [{ _id: searchTrim }] : [])
+                    {email: {$regex: searchTrim, $options: 'i'}},
+                    {fullName: {$regex: searchTrim, $options: 'i'}},
+                    ...(isObjectId ? [{_id: searchTrim}] : [])
                 ];
             }
 
@@ -1650,7 +1650,7 @@ class AdminController {
                 .select('_id email fullName role status createdAt')
                 .limit(parseInt(limit))
                 .skip(skip)
-                .sort({ createdAt: -1 })
+                .sort({createdAt: -1})
                 .lean();
 
             // Get total count for pagination
@@ -1677,12 +1677,12 @@ class AdminController {
      * Get orders for deletion interface with search and pagination
      */
     static async getOrdersForDeletion(params = {}) {
-        const { page = 1, limit = 100, search = '' } = params;
+        const {page = 1, limit = 100, search = ''} = params;
 
         try {
             await dbClient.connect();
-            const { Order } = await getOrderModels();
-            const { AAngBase } = await getModels();
+            const {Order} = await getOrderModels();
+            const {AAngBase} = await getModels();
 
             const skip = (page - 1) * limit;
             let searchQuery = {};
@@ -1696,7 +1696,7 @@ class AdminController {
                 let userIdFromEmail = null;
                 if (searchTrim.includes('@')) {
                     const user = await AAngBase.findOne({
-                        email: { $regex: searchTrim, $options: 'i' }
+                        email: {$regex: searchTrim, $options: 'i'}
                     }).select('_id');
 
                     if (user) {
@@ -1705,12 +1705,12 @@ class AdminController {
                 }
 
                 searchQuery.$or = [
-                    { orderRef: { $regex: searchTrim, $options: 'i' } },
+                    {orderRef: {$regex: searchTrim, $options: 'i'}},
                     ...(isObjectId ? [
-                        { _id: searchTrim },
-                        { clientId: searchTrim }
+                        {_id: searchTrim},
+                        {clientId: searchTrim}
                     ] : []),
-                    ...(userIdFromEmail ? [{ clientId: userIdFromEmail }] : [])
+                    ...(userIdFromEmail ? [{clientId: userIdFromEmail}] : [])
                 ];
             }
 
@@ -1719,13 +1719,13 @@ class AdminController {
                 .select('_id orderRef clientId status createdAt pricing')
                 .limit(parseInt(limit))
                 .skip(skip)
-                .sort({ createdAt: -1 })
+                .sort({createdAt: -1})
                 .lean();
 
             // Fetch client emails for display
             const clientIds = [...new Set(orders.map(o => o.clientId).filter(Boolean))];
             const clients = await AAngBase.find({
-                _id: { $in: clientIds }
+                _id: {$in: clientIds}
             }).select('_id email');
 
             // Create client email map
@@ -1763,17 +1763,17 @@ class AdminController {
     static async systemDeleteUser(userIds) {
         // Connect to database
         await dbClient.connect();
-        const { AAngBase } = await getModels();
-        const { Order } = await getOrderModels();
+        const {AAngBase} = await getModels();
+        const {Order} = await getOrderModels();
 
         // Delete users
         await AAngBase.deleteMany({
-            _id: { $in: userIds }
+            _id: {$in: userIds}
         });
 
         // Delete all orders associated with these users
         await Order.deleteMany({
-            clientId: { $in: userIds }
+            clientId: {$in: userIds}
         });
 
         console.log(`✅ Deleted Successfully`);
@@ -1789,7 +1789,7 @@ class AdminController {
 
         // Delete orders
         await Order.deleteMany({
-            _id: { $in: orderIds }
+            _id: {$in: orderIds}
         });
 
         console.log(`✅ Deleted Successfully`);
@@ -1837,7 +1837,7 @@ class AdminController {
     // In your AdminController
     static async updateDriverValidation(payload) {
         await dbClient.connect();
-        const { id, action, feedback, adminId } = payload;
+        const {id, action, feedback, adminId} = payload;
 
         // Validate action
         if (action !== 'approve' && action !== 'reject' && action !== 'suspend') {
@@ -2035,7 +2035,10 @@ class AdminController {
             category = '',
             priority = '',
             status = '',
-            showDeleted = 'false' // New parameter to control deleted visibility
+            showDeleted = 'false',
+            adminActionRequired = '',
+            adminActionStatus = '',
+            adminActionUrgency = ''
         } = params;
 
         try {
@@ -2069,6 +2072,18 @@ class AdminController {
                 } else {
                     matchStage.status = status;
                 }
+            }
+
+            // Admin action filters
+
+            if (adminActionRequired !== '') {
+                matchStage['adminAction.required'] = adminActionRequired === 'true';
+            }
+            if (adminActionStatus && adminActionStatus !== 'all') {
+                matchStage['adminAction.status'] = adminActionStatus;
+            }
+            if (adminActionUrgency && adminActionUrgency !== 'all') {
+                matchStage['adminAction.urgency'] = adminActionUrgency;
             }
 
             // Add search functionality
@@ -2107,6 +2122,42 @@ class AdminController {
                                 else: 0
                             }
                         },
+                        adminActionScore: {
+                            $cond: {
+                                if: {$eq: ["$adminAction.required", true]},
+                                then: {
+                                    $switch: {
+                                        branches: [
+                                            {case: {$eq: ["$adminAction.status", "PENDING"]}, then: 5000},
+                                            {case: {$eq: ["$adminAction.status", "IN_PROGRESS"]}, then: 4000},
+                                            {case: {$eq: ["$adminAction.status", "ESCALATED"]}, then: 4500},
+                                            {case: {$eq: ["$adminAction.status", "COMPLETED"]}, then: 100},
+                                            {case: {$eq: ["$adminAction.status", "REJECTED"]}, then: 50}
+                                        ],
+                                        default: 0
+                                    }
+                                },
+                                else: 0
+                            }
+                        },
+                        // Admin urgency boost
+                        adminUrgencyScore: {
+                            $cond: {
+                                if: {$eq: ["$adminAction.required", true]},
+                                then: {
+                                    $switch: {
+                                        branches: [
+                                            {case: {$eq: ["$adminAction.urgency", "IMMEDIATE"]}, then: 3000},
+                                            {case: {$eq: ["$adminAction.urgency", "TODAY"]}, then: 2000},
+                                            {case: {$eq: ["$adminAction.urgency", "THIS_WEEK"]}, then: 1000},
+                                            {case: {$eq: ["$adminAction.urgency", "WHENEVER"]}, then: 500}
+                                        ],
+                                        default: 500
+                                    }
+                                },
+                                else: 0
+                            }
+                        },
                         // Deleted penalty (deleted = lower priority)
                         deletedPenalty: {
                             $cond: {
@@ -2120,7 +2171,7 @@ class AdminController {
                 {
                     $addFields: {
                         finalScore: {
-                            $add: ["$priorityScore", "$readScore", "$deletedPenalty"]
+                            $add: ["$priorityScore", "$readScore", "$adminActionScore", "$adminUrgencyScore", "$deletedPenalty"]
                         }
                     }
                 }
@@ -2147,6 +2198,9 @@ class AdminController {
 
             // Define all possible categories, priorities, and statuses
             const allCategories = ['ORDER', 'DELIVERY', 'SECURITY', 'IDENTITY', 'SYSTEM', 'PAYMENT', 'SOCIAL', 'PROMOTION'];
+            const allAdminActionStatuses = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'REJECTED', 'ESCALATED'];
+            const allAdminActionUrgencies = ['IMMEDIATE', 'TODAY', 'THIS_WEEK', 'WHENEVER'];
+
             const allPriorities = ['CRITICAL', 'URGENT', 'HIGH', 'NORMAL', 'LOW'];
             const allStatuses = ['PENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'EXPIRED'];
 
@@ -2170,6 +2224,32 @@ class AdminController {
                         ],
                         unreadActive: [
                             {$match: {'read.status': false, 'deleted.status': false}},
+                            {$count: "count"}
+                        ],
+
+                        // admin actions
+                        adminActionRequired: [
+                            {$match: {'adminAction.required': true}},
+                            {$count: "count"}
+                        ],
+                        adminActionStatusBreakdown: [
+                            {$match: {'adminAction.required': true}},
+                            {$group: {_id: "$adminAction.status", count: {$sum: 1}}}
+                        ],
+                        adminActionUrgencyBreakdown: [
+                            {$match: {'adminAction.required': true}},
+                            {$group: {_id: "$adminAction.urgency", count: {$sum: 1}}}
+                        ],
+                        adminActionPending: [
+                            {$match: {'adminAction.required': true, 'adminAction.status': 'PENDING'}},
+                            {$count: "count"}
+                        ],
+                        adminActionInProgress: [
+                            {$match: {'adminAction.required': true, 'adminAction.status': 'IN_PROGRESS'}},
+                            {$count: "count"}
+                        ],
+                        adminActionOverdue: [
+                            {$match: {'adminAction.required': true, 'adminAction.sla.isOverdue': true}},
                             {$count: "count"}
                         ],
 
@@ -2263,6 +2343,10 @@ class AdminController {
             const activeCategoryStats = arrayToObject(statsResult.activeCategoryBreakdown || [], allCategories);
             const filteredCategoryStats = arrayToObject(statsResult.filteredCategoryBreakdown || [], allCategories);
 
+            // NEW: Admin action statistics
+            const adminActionStatusStats = arrayToObject(statsResult.adminActionStatusBreakdown || [], allAdminActionStatuses);
+            const adminActionUrgencyStats = arrayToObject(statsResult.adminActionUrgencyBreakdown || [], allAdminActionUrgencies);
+
             const systemPriorityStats = arrayToObject(statsResult.systemPriorityBreakdown || [], allPriorities);
             const activePriorityStats = arrayToObject(statsResult.activePriorityBreakdown || [], allPriorities);
             const unreadPriorityStats = arrayToObject(statsResult.unreadPriorityBreakdown || [], allPriorities);
@@ -2293,6 +2377,15 @@ class AdminController {
                 activeByCategory: activeCategoryStats, // Active only
                 filteredByCategory: filteredCategoryStats, // Based on current filters
 
+                adminAction: {
+                    required: statsResult.adminActionRequired[0]?.count || 0,
+                    pending: statsResult.adminActionPending[0]?.count || 0,
+                    inProgress: statsResult.adminActionInProgress[0]?.count || 0,
+                    overdue: statsResult.adminActionOverdue[0]?.count || 0,
+                    byStatus: adminActionStatusStats,
+                    byUrgency: adminActionUrgencyStats
+                },
+
                 // Priority statistics
                 byPriority: systemPriorityStats, // All including deleted
                 activeByPriority: activePriorityStats, // Active only
@@ -2308,6 +2401,9 @@ class AdminController {
                 critical: activePriorityStats.CRITICAL || 0,
                 urgent: activePriorityStats.URGENT || 0,
                 high: activePriorityStats.HIGH || 0,
+                adminActionPending: statsResult.adminActionPending[0]?.count || 0,
+                adminActionUrgent: adminActionUrgencyStats.IMMEDIATE || 0,
+
 
                 // Performance metrics
                 deliveryRate,
@@ -2326,13 +2422,16 @@ class AdminController {
                 // Filter context
                 isFiltered: !!(search || category || priority || status || showDeleted !== 'false'),
                 activeFilters: {
-                search: search || null,
+                    search: search || null,
                     category: category || null,
                     priority: priority || null,
                     status: status || null,
-                    showDeleted: showDeleted || 'false'
-            }
-        };
+                    showDeleted: showDeleted || 'false',
+                    adminActionRequired: adminActionRequired || null,
+                    adminActionStatus: adminActionStatus || null,
+                    adminActionUrgency: adminActionUrgency || null
+                }
+            };
 
             const result = {
                 initialNotificationData: notifications,
@@ -2367,7 +2466,10 @@ class AdminController {
             category = '',
             priority = '',
             status = '',
-            showDeleted = 'false' // New parameter
+            showDeleted = 'false',
+            adminActionRequired = '',
+            adminActionStatus = '',
+            adminActionUrgency = ''
         } = params;
 
         try {
@@ -2401,6 +2503,17 @@ class AdminController {
                 } else {
                     matchStage.status = status;
                 }
+            }
+
+            // NEW: Admin action filters
+            if (adminActionRequired !== '') {
+                matchStage['adminAction.required'] = adminActionRequired === 'true';
+            }
+            if (adminActionStatus && adminActionStatus !== 'all') {
+                matchStage['adminAction.status'] = adminActionStatus;
+            }
+            if (adminActionUrgency && adminActionUrgency !== 'all') {
+                matchStage['adminAction.urgency'] = adminActionUrgency;
             }
 
             // Add search functionality
@@ -2439,6 +2552,43 @@ class AdminController {
                                 else: 0
                             }
                         },
+                        // NEW: Admin action priority boost (admin actions get highest priority)
+                        adminActionScore: {
+                            $cond: {
+                                if: {$eq: ["$adminAction.required", true]},
+                                then: {
+                                    $switch: {
+                                        branches: [
+                                            {case: {$eq: ["$adminAction.status", "PENDING"]}, then: 5000},
+                                            {case: {$eq: ["$adminAction.status", "IN_PROGRESS"]}, then: 4000},
+                                            {case: {$eq: ["$adminAction.status", "ESCALATED"]}, then: 4500},
+                                            {case: {$eq: ["$adminAction.status", "COMPLETED"]}, then: 100},
+                                            {case: {$eq: ["$adminAction.status", "REJECTED"]}, then: 50}
+                                        ],
+                                        default: 0
+                                    }
+                                },
+                                else: 0
+                            }
+                        },
+                        // NEW: Admin urgency boost
+                        adminUrgencyScore: {
+                            $cond: {
+                                if: {$eq: ["$adminAction.required", true]},
+                                then: {
+                                    $switch: {
+                                        branches: [
+                                            {case: {$eq: ["$adminAction.urgency", "IMMEDIATE"]}, then: 3000},
+                                            {case: {$eq: ["$adminAction.urgency", "TODAY"]}, then: 2000},
+                                            {case: {$eq: ["$adminAction.urgency", "THIS_WEEK"]}, then: 1000},
+                                            {case: {$eq: ["$adminAction.urgency", "WHENEVER"]}, then: 500}
+                                        ],
+                                        default: 500
+                                    }
+                                },
+                                else: 0
+                            }
+                        },
                         // Deleted penalty (deleted = lower priority)
                         deletedPenalty: {
                             $cond: {
@@ -2452,7 +2602,13 @@ class AdminController {
                 {
                     $addFields: {
                         finalScore: {
-                            $add: ["$priorityScore", "$readScore", "$deletedPenalty"]
+                            $add: [
+                                "$priorityScore",
+                                "$readScore",
+                                "$adminActionScore",
+                                "$adminUrgencyScore",
+                                "$deletedPenalty"
+                            ]
                         }
                     }
                 }
@@ -2481,6 +2637,9 @@ class AdminController {
             const allCategories = ['ORDER', 'DELIVERY', 'SECURITY', 'IDENTITY', 'SYSTEM', 'PAYMENT', 'SOCIAL', 'PROMOTION'];
             const allPriorities = ['CRITICAL', 'URGENT', 'HIGH', 'NORMAL', 'LOW'];
             const allStatuses = ['PENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'EXPIRED'];
+            // NEW: Admin action enums
+            const allAdminActionStatuses = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'REJECTED', 'ESCALATED'];
+            const allAdminActionUrgencies = ['IMMEDIATE', 'TODAY', 'THIS_WEEK', 'WHENEVER'];
 
             // Enhanced comprehensive statistics pipeline
             const statsPipeline = [
@@ -2502,6 +2661,32 @@ class AdminController {
                         ],
                         unreadActive: [
                             {$match: {'read.status': false, 'deleted.status': false}},
+                            {$count: "count"}
+                        ],
+
+                        // NEW: Admin action statistics
+                        adminActionRequired: [
+                            {$match: {'adminAction.required': true}},
+                            {$count: "count"}
+                        ],
+                        adminActionStatusBreakdown: [
+                            {$match: {'adminAction.required': true}},
+                            {$group: {_id: "$adminAction.status", count: {$sum: 1}}}
+                        ],
+                        adminActionUrgencyBreakdown: [
+                            {$match: {'adminAction.required': true}},
+                            {$group: {_id: "$adminAction.urgency", count: {$sum: 1}}}
+                        ],
+                        adminActionPending: [
+                            {$match: {'adminAction.required': true, 'adminAction.status': 'PENDING'}},
+                            {$count: "count"}
+                        ],
+                        adminActionInProgress: [
+                            {$match: {'adminAction.required': true, 'adminAction.status': 'IN_PROGRESS'}},
+                            {$count: "count"}
+                        ],
+                        adminActionOverdue: [
+                            {$match: {'adminAction.required': true, 'adminAction.sla.isOverdue': true}},
                             {$count: "count"}
                         ],
 
@@ -2604,6 +2789,10 @@ class AdminController {
             const activeStatusStats = arrayToObject(statsResult.activeStatusBreakdown || [], allStatuses);
             const filteredStatusStats = arrayToObject(statsResult.filteredStatusBreakdown || [], allStatuses);
 
+            // NEW: Admin action statistics
+            const adminActionStatusStats = arrayToObject(statsResult.adminActionStatusBreakdown || [], allAdminActionStatuses);
+            const adminActionUrgencyStats = arrayToObject(statsResult.adminActionUrgencyBreakdown || [], allAdminActionUrgencies);
+
             // Calculate delivery and read rates
             const totalInSystem = statsResult.totalAll[0]?.count || 1;
             const totalDelivered = systemStatusStats.SENT + systemStatusStats.DELIVERED + systemStatusStats.READ;
@@ -2636,10 +2825,22 @@ class AdminController {
                 activeByStatus: activeStatusStats,
                 filteredByStatus: filteredStatusStats,
 
+                // NEW: Admin action statistics
+                adminAction: {
+                    required: statsResult.adminActionRequired[0]?.count || 0,
+                    pending: statsResult.adminActionPending[0]?.count || 0,
+                    inProgress: statsResult.adminActionInProgress[0]?.count || 0,
+                    overdue: statsResult.adminActionOverdue[0]?.count || 0,
+                    byStatus: adminActionStatusStats,
+                    byUrgency: adminActionUrgencyStats
+                },
+
                 // Quick access metrics
                 critical: activePriorityStats.CRITICAL || 0,
                 urgent: activePriorityStats.URGENT || 0,
                 high: activePriorityStats.HIGH || 0,
+                adminActionPending: statsResult.adminActionPending[0]?.count || 0,
+                adminActionUrgent: adminActionUrgencyStats.IMMEDIATE || 0,
 
                 // Performance metrics
                 deliveryRate,
@@ -2662,7 +2863,10 @@ class AdminController {
                     category: category || null,
                     priority: priority || null,
                     status: status || null,
-                    showDeleted: showDeleted || 'false'
+                    showDeleted: showDeleted || 'false',
+                    adminActionRequired: adminActionRequired || null,
+                    adminActionStatus: adminActionStatus || null,
+                    adminActionUrgency: adminActionUrgency || null
                 }
             };
 
@@ -2695,18 +2899,32 @@ class AdminController {
      * @returns {Promise<Object>} - Notifications and count data
      */
     static async getTopUnreadNotifications(params = {}) {
-        const { limit = 10 } = params;
+        const {
+            limit = 10,
+            adminActionOnly = true
+        } = params;
 
         try {
             await dbClient.connect();
 
-            // Get unread notifications with priority sorting
+            // Build the base match stage
+            const baseMatch = {
+                'deleted.status': false,
+                'read.status': false
+            };
+
+            // If we only want admin action notifications, add that filter
+            if (adminActionOnly) {
+                baseMatch['adminAction.required'] = true;
+                baseMatch['adminAction.status'] = {
+                    $in: ['PENDING', 'IN_PROGRESS', 'ESCALATED']
+                };
+            }
+
+            // Enhanced pipeline with admin action priority
             const pipeline = [
                 {
-                    $match: {
-                        'deleted.status': false,
-                        'read.status': false
-                    }
+                    $match: baseMatch
                 },
                 {
                     $addFields: {
@@ -2714,20 +2932,69 @@ class AdminController {
                         priorityScore: {
                             $switch: {
                                 branches: [
-                                    { case: { $eq: ["$priority", "CRITICAL"] }, then: 1000 },
-                                    { case: { $eq: ["$priority", "URGENT"] }, then: 800 },
-                                    { case: { $eq: ["$priority", "HIGH"] }, then: 600 },
-                                    { case: { $eq: ["$priority", "NORMAL"] }, then: 400 },
-                                    { case: { $eq: ["$priority", "LOW"] }, then: 200 }
+                                    {case: {$eq: ["$priority", "CRITICAL"]}, then: 1000},
+                                    {case: {$eq: ["$priority", "URGENT"]}, then: 800},
+                                    {case: {$eq: ["$priority", "HIGH"]}, then: 600},
+                                    {case: {$eq: ["$priority", "NORMAL"]}, then: 400},
+                                    {case: {$eq: ["$priority", "LOW"]}, then: 200}
                                 ],
                                 default: 400
+                            }
+                        },
+                        // Admin action priority boost
+                        adminActionScore: {
+                            $cond: {
+                                if: {$eq: ["$adminAction.required", true]},
+                                then: {
+                                    $switch: {
+                                        branches: [
+                                            {case: {$eq: ["$adminAction.status", "PENDING"]}, then: 5000},
+                                            {case: {$eq: ["$adminAction.status", "ESCALATED"]}, then: 4500},
+                                            {case: {$eq: ["$adminAction.status", "IN_PROGRESS"]}, then: 4000},
+                                            {case: {$eq: ["$adminAction.status", "COMPLETED"]}, then: 100},
+                                            {case: {$eq: ["$adminAction.status", "REJECTED"]}, then: 50}
+                                        ],
+                                        default: 0
+                                    }
+                                },
+                                else: 0
+                            }
+                        },
+                        // Admin urgency boost
+                        adminUrgencyScore: {
+                            $cond: {
+                                if: {$eq: ["$adminAction.required", true]},
+                                then: {
+                                    $switch: {
+                                        branches: [
+                                            {case: {$eq: ["$adminAction.urgency", "IMMEDIATE"]}, then: 3000},
+                                            {case: {$eq: ["$adminAction.urgency", "TODAY"]}, then: 2000},
+                                            {case: {$eq: ["$adminAction.urgency", "THIS_WEEK"]}, then: 1000},
+                                            {case: {$eq: ["$adminAction.urgency", "WHENEVER"]}, then: 500}
+                                        ],
+                                        default: 500
+                                    }
+                                },
+                                else: 0
                             }
                         }
                     }
                 },
                 {
+                    $addFields: {
+                        // COMBINED score - admin actions get massive priority
+                        finalScore: {
+                            $add: [
+                                "$priorityScore",
+                                "$adminActionScore",
+                                "$adminUrgencyScore"
+                            ]
+                        }
+                    }
+                },
+                {
                     $sort: {
-                        priorityScore: -1,
+                        finalScore: -1,
                         createdAt: -1
                     }
                 },
@@ -2742,6 +3009,7 @@ class AdminController {
                         type: 1,
                         priority: 1,
                         content: 1,
+                        adminAction: 1,
                         metadata: 1,
                         status: 1,
                         read: 1,
@@ -2753,17 +3021,25 @@ class AdminController {
 
             const notifications = await Notification.aggregate(pipeline);
 
-            // Get total unread count
-            const unreadCount = await Notification.countDocuments({
+            // Get the appropriate count based on our filter
+            const unreadCount = await Notification.countDocuments(baseMatch);
+
+            // Always get admin action count separately for the store
+            const adminActionCount = await Notification.countDocuments({
                 'deleted.status': false,
-                'read.status': false
+                'read.status': false,
+                'adminAction.required': true,
+                'adminAction.status': {$in: ['PENDING', 'IN_PROGRESS', 'ESCALATED']}
             });
 
             const result = {
                 success: true,
                 notifications,
                 unreadCount,
+                adminActionCount,
                 hasUnread: unreadCount > 0,
+                hasAdminActions: adminActionCount > 0,
+                adminActionOnly,
                 timestamp: new Date().toISOString()
             };
 
@@ -2775,7 +3051,9 @@ class AdminController {
                 success: false,
                 notifications: [],
                 unreadCount: 0,
+                adminActionCount: 0,
                 hasUnread: false,
+                hasAdminActions: false,
                 error: err.message
             };
         }
@@ -2798,7 +3076,7 @@ class AdminController {
                         'read.readAt': new Date()
                     }
                 },
-                { new: true }
+                {new: true}
             );
 
             if (!result) {
@@ -2877,6 +3155,158 @@ class AdminController {
         }
     }
 
+    // Add this method to AdminController
+
+    /**
+     * Gets detailed notification data with related entity information
+     * @param {string} notificationId - The notification ID
+     * @returns {Promise<Object>} - Detailed notification data
+     */
+    static async getNotificationData(notificationId) {
+        try {
+            await dbClient.connect();
+
+            // Get notification with populated references
+            const notification = await Notification.findById(notificationId).lean();
+
+            if (!notification) {
+                return null;
+            }
+
+            // Get related entity details if exists
+            let relatedEntityData = null;
+
+            if (notification.adminAction?.relatedEntity?.type && notification.adminAction?.relatedEntity?.id) {
+                const entityType = notification.adminAction.relatedEntity.type;
+                const entityId = notification.adminAction.relatedEntity.id;
+
+                try {
+                    switch (entityType) {
+                        case 'order':
+                            relatedEntityData = await Order.findById(entityId)
+                                .populate('userId', 'fullName email phone')
+                                .populate('driverId', 'fullName phone vehicleInfo')
+                                .lean();
+                            break;
+
+                        case 'driver_verification':
+                            relatedEntityData = await Driver.findById(entityId)
+                                .populate('userId', 'fullName email phone')
+                                .lean();
+                            break;
+
+                        case 'payment':
+                            relatedEntityData = await Payment.findById(entityId)
+                                .populate('userId', 'fullName email')
+                                .lean();
+                            break;
+
+                        case 'user_profile':
+                            relatedEntityData = await AAngBase.findById(entityId)
+                                .select('fullName email phone role status createdAt')
+                                .lean();
+                            break;
+
+                        case 'dispute':
+                        case 'support_ticket':
+                        case 'report':
+                            // Add models for these if you have them
+                            relatedEntityData = {
+                                _id: entityId,
+                                type: entityType,
+                                status: notification.adminAction.relatedEntity.status
+                            };
+                            break;
+                    }
+                } catch (err) {
+                    console.error(`Error fetching related entity (${entityType}):`, err);
+                }
+            }
+
+            // Calculate time metrics
+            const timeMetrics = {
+                age: notification.createdAt ?
+                    Math.round((new Date() - new Date(notification.createdAt)) / 60000) : 0, // minutes
+
+                timeToRead: notification.read?.readAt && notification.createdAt ?
+                    Math.round((new Date(notification.read.readAt) - new Date(notification.createdAt)) / 60000) : null,
+
+                timeToHandle: notification.adminAction?.handledBy?.handledAt && notification.createdAt ?
+                    Math.round((new Date(notification.adminAction.handledBy.handledAt) - new Date(notification.createdAt)) / 60000) : null,
+
+                timeToComplete: notification.adminAction?.outcome?.completedAt && notification.adminAction?.handledBy?.handledAt ?
+                    Math.round((new Date(notification.adminAction.outcome.completedAt) - new Date(notification.adminAction.handledBy.handledAt)) / 60000) : null,
+
+                isOverdue: notification.adminAction?.sla?.dueAt ?
+                    new Date() > new Date(notification.adminAction.sla.dueAt) : false,
+
+                timeUntilDue: notification.adminAction?.sla?.dueAt ?
+                    Math.round((new Date(notification.adminAction.sla.dueAt) - new Date()) / 60000) : null
+            };
+
+            // Get interaction summary
+            const interactionSummary = {
+                total: notification.metadata?.interactions?.length || 0,
+                byAction: {},
+                lastInteraction: notification.metadata?.interactions?.length > 0 ?
+                    notification.metadata.interactions[notification.metadata.interactions.length - 1] : null
+            };
+
+            notification.metadata?.interactions?.forEach(interaction => {
+                const action = interaction.action || 'unknown';
+                interactionSummary.byAction[action] = (interactionSummary.byAction[action] || 0) + 1;
+            });
+
+            const result = {
+                notification,
+                relatedEntity: relatedEntityData,
+                timeMetrics,
+                interactionSummary,
+                metadata: {
+                    fetchedAt: new Date(),
+                    canTakeAction: notification.adminAction?.status === 'PENDING' ||
+                        notification.adminAction?.status === 'IN_PROGRESS',
+                    actionUrl: this.getActionUrl(notification)
+                }
+            };
+
+            return JSON.parse(JSON.stringify(result));
+
+        } catch (err) {
+            console.error('Get notification data error:', err);
+            throw new Error('Failed to fetch notification data');
+        }
+    }
+
+    /**
+     * Helper: Generate action URL based on notification type
+     */
+    static getActionUrl(notification) {
+        if (!notification.adminAction?.required) return null;
+
+        const entityType = notification.adminAction.relatedEntity?.type;
+        const entityId = notification.adminAction.relatedEntity?.id;
+
+        if (!entityType || !entityId) {
+            // Use deepLink if available
+            return notification.content?.richContent?.actionButtons?.[0]?.deepLink || null;
+        }
+
+        const urlMap = {
+            'order': `/admin/orders/${entityId}`,
+            'driver_verification': `/admin/drivers/${entityId}/verification`,
+            'payment': `/admin/payments/${entityId}`,
+            'dispute': `/admin/disputes/${entityId}`,
+            'user_profile': `/admin/users/${entityId}`,
+            'support_ticket': `/admin/support/${entityId}`,
+            'report': `/admin/reports/${entityId}`,
+            'system_alert': `/admin/system/alerts`
+        };
+
+        return urlMap[entityType] || null;
+    }
+
+
     /**
      * Deletes a notification (soft delete)
      * @param {string} notificationId - The notification ID
@@ -2894,7 +3324,7 @@ class AdminController {
                         'deleted.deletedAt': new Date()
                     }
                 },
-                { new: true }
+                {new: true}
             );
 
             if (!result) {
@@ -2944,7 +3374,7 @@ class AdminController {
                         'deleted.deletedAt': null
                     }
                 },
-                { new: true }
+                {new: true}
             );
 
             if (!result) {
@@ -3016,14 +3446,14 @@ class AdminController {
      * Mark all notifications as read
      */
     static async markAllAsRead(payload) {
-        const { id, category } = payload;
+        const {id, category} = payload;
         try {
             await dbClient.connect();
             await NotificationService.markAllAsRead(id, category);
-            return ({ success:'All notifications marked as read' });
+            return ({success: 'All notifications marked as read'});
         } catch (err) {
             console.error('Mark all as read error:', err);
-            throw new Error ('Failed to mark all notifications as read');
+            throw new Error('Failed to mark all notifications as read');
         }
     }
 
@@ -3063,10 +3493,10 @@ class AdminController {
         try {
             await dbClient.connect();
             await NotificationService.deleteAllNotifications(payload.userId);
-            return ({ message: 'All notifications deleted' });
+            return ({message: 'All notifications deleted'});
         } catch (err) {
             console.error('Delete all notifications error:', err);
-            throw new Error ('Failed to delete all notifications');
+            throw new Error('Failed to delete all notifications');
         }
     }
 
@@ -3077,7 +3507,7 @@ class AdminController {
     static async permanentlyDeleteNotifications(payload) {
         try {
             await dbClient.connect();
-            const { notificationIds = [], deleteAll = false } = payload;
+            const {notificationIds = [], deleteAll = false} = payload;
 
             let result;
             if (deleteAll) {
@@ -3088,7 +3518,7 @@ class AdminController {
             } else if (notificationIds.length > 0) {
                 // Delete specific notifications
                 result = await Notification.deleteMany({
-                    _id: { $in: notificationIds },
+                    _id: {$in: notificationIds},
                     'deleted.status': true
                 });
             } else {
@@ -3108,7 +3538,7 @@ class AdminController {
      * Get notification statistics for admin dashboard
      */
     static async getNotificationStatistics(payload) {
-        const { userData } = payload
+        const {userData} = payload
         try {
             await dbClient.connect();
             const stats = await NotificationService.getNotificationStats(userData._id);
@@ -3116,23 +3546,23 @@ class AdminController {
             // Get additional admin-specific stats
             const [categoryBreakdown, statusBreakdown, recentActivity] = await Promise.all([
                 Notification.aggregate([
-                    { $match: { userId: userData._id, 'deleted.status': false } },
-                    { $group: { _id: '$category', count: { $sum: 1 } } }
+                    {$match: {userId: userData._id, 'deleted.status': false}},
+                    {$group: {_id: '$category', count: {$sum: 1}}}
                 ]),
                 Notification.aggregate([
-                    { $match: { userId: userData._id, 'deleted.status': false } },
-                    { $group: { _id: '$status', count: { $sum: 1 } } }
+                    {$match: {userId: userData._id, 'deleted.status': false}},
+                    {$group: {_id: '$status', count: {$sum: 1}}}
                 ]),
                 Notification.find({
                     userId: userData._id,
                     'deleted.status': false
                 })
-                    .sort({ createdAt: -1 })
+                    .sort({createdAt: -1})
                     .limit(10)
                     .lean()
             ]);
 
-            return({
+            return ({
                 ...stats,
                 categoryBreakdown: categoryBreakdown.reduce((acc, item) => {
                     acc[item._id] = item.count;
@@ -3146,7 +3576,7 @@ class AdminController {
             });
         } catch (err) {
             console.error('Get statistics error:', err);
-            return ({ error: 'Failed to fetch statistics' });
+            return ({error: 'Failed to fetch statistics'});
         }
     }
 
@@ -3189,7 +3619,7 @@ class AdminController {
             });
         } catch (err) {
             console.error('Create notification error:', err);
-            return res.status(500).json({ error: 'Failed to create notification' });
+            return res.status(500).json({error: 'Failed to create notification'});
         }
     }
 }

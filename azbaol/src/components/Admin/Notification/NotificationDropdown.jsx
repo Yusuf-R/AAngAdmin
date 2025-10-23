@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Check, Trash2, ExternalLink, BellDot, BellRing } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,76 +16,34 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import AdminUtils from '@/utils/AdminUtils';
-import { socketClient } from '@/lib/SocketClient';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 export default function NotificationDropdown() {
     const router = useRouter();
-    const [notifications, setNotifications] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [hasUnread, setHasUnread] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
-    // Fetch top notifications
-    const fetchTopNotifications = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const result = await AdminUtils.getTopUnreadNotifications();
-            if (result.success) {
-                setNotifications(result.notifications);
-                setUnreadCount(result.unreadCount);
-                setHasUnread(result.hasUnread);
-            }
-        } catch (error) {
-            console.error('Failed to fetch notifications:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
+    // Use Zustand store instead of useState and Context
+    const {
+        topNotifications,
+        adminActionCount,
+        hasAdminActions,
+        isLoading,
+        fetchNotificationData,
+        markAsRead,
+        deleteNotification,
+        markAllAsRead
+    } = useNotificationStore();
 
-    // Initial load
+    // Fetch top notifications on mount
     useEffect(() => {
-        fetchTopNotifications();
-    }, [fetchTopNotifications]);
-
-    // Socket connection and real-time updates
-    useEffect(() => {
-        const connectSocket = async () => {
-            try {
-                if (!socketClient.isConnected) {
-                    await socketClient.connect();
-                }
-
-                // Listen for new notifications
-                socketClient.on('notification', (data) => {
-                    console.log('New notification received:', data);
-                    // Refresh the notification list
-                    fetchTopNotifications();
-                    // Show toast for new notification
-                    toast.info(data.content?.title || 'New notification', {
-                        description: data.content?.body,
-                    });
-                });
-            } catch (error) {
-                console.error('Socket connection error:', error);
-            }
-        };
-
-        connectSocket();
-
-        return () => {
-            socketClient.off('notification');
-        };
-    }, [fetchTopNotifications]);
+        fetchNotificationData(true); // true = showLoading
+    }, [fetchNotificationData]);
 
     // Mark notification as read
     const handleMarkAsRead = async (notificationId, e) => {
-        e.stopPropagation();
+        e?.stopPropagation();
         try {
-            const result = await AdminUtils.markAsRead(notificationId);
-            if (result.success) {
-                await fetchTopNotifications();
-            }
+            await markAsRead(notificationId);
         } catch (error) {
             toast.error('Failed to mark as read');
         }
@@ -94,11 +52,7 @@ export default function NotificationDropdown() {
     // Mark all as read
     const handleMarkAllAsRead = async () => {
         try {
-            const result = await AdminUtils.markAllAsRead();
-            if (result.success) {
-                toast.success('All notifications marked as read');
-                await fetchTopNotifications();
-            }
+            await markAllAsRead();
         } catch (error) {
             toast.error('Failed to mark all as read');
         }
@@ -106,13 +60,9 @@ export default function NotificationDropdown() {
 
     // Delete notification
     const handleDelete = async (notificationId, e) => {
-        e.stopPropagation();
+        e?.stopPropagation();
         try {
-            const result = await AdminUtils.deleteNotification(notificationId);
-            if (result.success) {
-                toast.success('Notification deleted');
-                await fetchTopNotifications();
-            }
+            await deleteNotification(notificationId);
         } catch (error) {
             toast.error('Failed to delete notification');
         }
@@ -122,7 +72,7 @@ export default function NotificationDropdown() {
     const handleNotificationClick = async (notification) => {
         // Mark as read if unread
         if (!notification.read?.status) {
-            await handleMarkAsRead(notification._id, { stopPropagation: () => {} });
+            await handleMarkAsRead(notification._id);
         }
 
         // Navigate based on notification type
@@ -155,28 +105,28 @@ export default function NotificationDropdown() {
                     size="icon"
                     className="relative"
                 >
-                    {hasUnread ? (
+                    {hasAdminActions ? (
                         <BellDot className="h-5 w-5" />
                     ) : (
                         <Bell className="h-5 w-5" />
                     )}
 
-                    {/* Indicator dot */}
+                    {/* Indicator dot - shows red only for admin actions */}
                     <span
                         className={`absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full ${
-                            hasUnread
+                            hasAdminActions
                                 ? 'bg-red-500 animate-pulse'
                                 : 'bg-green-500'
                         }`}
                     />
 
-                    {/* Badge count */}
-                    {unreadCount > 0 && (
+                    {/* Badge count - shows admin action count only */}
+                    {adminActionCount > 0 && (
                         <Badge
                             variant="destructive"
                             className="absolute -top-1 -right-1 h-5 min-w-5 flex items-center justify-center p-0 text-xs"
                         >
-                            {unreadCount > 99 ? '99+' : unreadCount}
+                            {adminActionCount > 99 ? '99+' : adminActionCount}
                         </Badge>
                     )}
                 </Button>
@@ -186,14 +136,14 @@ export default function NotificationDropdown() {
                 <DropdownMenuLabel className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <BellRing className="h-4 w-4" />
-                        <span>Notifications</span>
-                        {unreadCount > 0 && (
+                        <span>Admin Actions</span>
+                        {adminActionCount > 0 && (
                             <Badge variant="secondary" className="text-xs">
-                                {unreadCount} new
+                                {adminActionCount} pending
                             </Badge>
                         )}
                     </div>
-                    {unreadCount > 0 && (
+                    {adminActionCount > 0 && (
                         <Button
                             variant="ghost"
                             size="sm"
@@ -211,11 +161,11 @@ export default function NotificationDropdown() {
                     <div className="flex items-center justify-center py-8">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     </div>
-                ) : notifications.length === 0 ? (
+                ) : topNotifications.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                         <Bell className="h-12 w-12 text-muted-foreground/40 mb-2" />
                         <p className="text-sm font-medium text-muted-foreground">
-                            No notifications
+                            No pending actions
                         </p>
                         <p className="text-xs text-muted-foreground/70">
                             You're all caught up!
@@ -224,9 +174,10 @@ export default function NotificationDropdown() {
                 ) : (
                     <ScrollArea className="h-96">
                         <div className="space-y-1 p-2">
-                            {notifications.map((notification) => {
+                            {topNotifications.map((notification) => {
                                 const meta = getNotificationMeta(notification);
                                 const isUnread = !notification.read?.status;
+                                const requiresAdminAction = notification.adminAction?.required;
 
                                 return (
                                     <div
@@ -235,12 +186,18 @@ export default function NotificationDropdown() {
                                             relative rounded-lg p-3 cursor-pointer transition-all
                                             hover:bg-muted/50
                                             ${isUnread ? 'bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20' : ''}
+                                            ${requiresAdminAction ? 'border-l-4 border-l-amber-400' : ''}
                                         `}
                                         onClick={() => handleNotificationClick(notification)}
                                     >
                                         {/* Unread indicator */}
                                         {isUnread && (
                                             <div className="absolute top-3 right-3 h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+                                        )}
+
+                                        {/* Admin action indicator */}
+                                        {requiresAdminAction && (
+                                            <div className="absolute top-3 left-3 h-2 w-2 rounded-full bg-amber-500" />
                                         )}
 
                                         <div className="flex gap-3">
@@ -255,17 +212,44 @@ export default function NotificationDropdown() {
                                                     <p className="text-sm font-semibold text-foreground line-clamp-1">
                                                         {notification.content?.title}
                                                     </p>
-                                                    <Badge
-                                                        variant="outline"
-                                                        className={`text-xs ${meta.color} flex-shrink-0`}
-                                                    >
-                                                        {notification.priority}
-                                                    </Badge>
+                                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                                        {requiresAdminAction && (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="text-xs bg-amber-50 text-amber-700 border-amber-200"
+                                                            >
+                                                                Action
+                                                            </Badge>
+                                                        )}
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={`text-xs ${meta.color}`}
+                                                        >
+                                                            {notification.priority}
+                                                        </Badge>
+                                                    </div>
                                                 </div>
 
                                                 <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
                                                     {notification.content?.body}
                                                 </p>
+
+                                                {notification.adminAction && (
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="text-xs capitalize"
+                                                        >
+                                                            {notification.adminAction.actionType?.toLowerCase()}
+                                                        </Badge>
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="text-xs"
+                                                        >
+                                                            {notification.adminAction.status}
+                                                        </Badge>
+                                                    </div>
+                                                )}
 
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-xs text-muted-foreground">

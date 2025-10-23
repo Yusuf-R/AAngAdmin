@@ -16,7 +16,10 @@ export async function GET(request) {
             limit: parseInt(searchParams.get('limit')) || 100,
             sortBy: searchParams.get('sortBy') || 'createdAt',
             sortOrder: searchParams.get('sortOrder') || 'desc',
-            showDeleted: searchParams.get('showDeleted') || 'false'
+            showDeleted: searchParams.get('showDeleted') || 'false',
+            adminActionRequired: searchParams.get('adminActionRequired') || '',
+            adminActionStatus: searchParams.get('adminActionStatus') || '',
+            adminActionUrgency: searchParams.get('adminActionUrgency') || ''
         };
         const result = await AdminController.getNotifications(filters);
         return ApiResponseHandler.success(result);

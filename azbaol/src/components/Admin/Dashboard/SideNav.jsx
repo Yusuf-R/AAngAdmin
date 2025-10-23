@@ -1,3 +1,5 @@
+'use client';
+
 import {useState} from "react";
 import {
     Menu,
@@ -17,15 +19,16 @@ import {
     ChevronDown,
     LogOut,
     ChevronUp,
-    Loader2
+    Loader2,
+    Waypoints
 } from "lucide-react";
 import Image from "next/image";
 import {signOut} from 'next-auth/react';
 import {useRouter} from "next/navigation";
 import {queryClient} from "@/lib/queryClient";
 import {toast} from "sonner";
-import {useNotifications} from "@/contexts/NotificationContext";
 import {Badge} from "@/components/ui/badge";
+import { useNotificationStore } from '@/store/useNotificationStore'; // Add this import
 
 function SideNav({navState, activeRoute = "/", adminData}) {
     const router = useRouter();
@@ -33,8 +36,8 @@ function SideNav({navState, activeRoute = "/", adminData}) {
     const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
     const [loadingRoute, setLoadingRoute] = useState(null);
 
-    // Get notification count from context
-    const {unreadCount} = useNotifications();
+    // Get admin action count from Zustand store instead of Context
+    const adminActionCount = useNotificationStore(state => state.adminActionCount);
 
     const menuItems = [
         {icon: Home, label: "Dashboard", path: "/admin/dashboard"},
@@ -42,9 +45,11 @@ function SideNav({navState, activeRoute = "/", adminData}) {
         {icon: Box, label: "Orders", path: "/admin/orders"},
         {icon: HandCoins, label: "Payments", path: "/admin/payment"},
         {icon: UserRoundPen, label: "Profile", path: "/admin/profile"},
-        {icon: Bell, label: "Notifications", path: "/admin/notifications", badge: unreadCount}, // Added badge
-        {icon: Settings, label: "Settings", path: "/admin/settings"},
+        {icon: Bell, label: "Notifications", path: "/admin/notifications", badge: adminActionCount},
+        {icon: Waypoints, label: "Support", path: "/admin/support"},
+        // {icon: Settings, label: "Settings", path: "/admin/settings"},
         {icon: DatabaseZap, label: "System", path: "/admin/system"},
+
     ];
 
     const isIconOnly = navState === "icon";
@@ -68,7 +73,6 @@ function SideNav({navState, activeRoute = "/", adminData}) {
 
     // Handle navigation with loading state
     const handleNavigation = async (path) => {
-        // If already on the current page, don't navigate
         if (activeRoute === path) {
             toast.info("You're already on this page");
             return;
@@ -76,24 +80,12 @@ function SideNav({navState, activeRoute = "/", adminData}) {
 
         try {
             setLoadingRoute(path);
-
-            // Small delay to show loading state
             await new Promise(resolve => setTimeout(resolve, 200));
-
-            // Navigate to the new route
             router.push(path);
-
-            // Show success toast
-            const menuItem = menuItems.find(item => item.path === path);
-            if (menuItem) {
-                // toast.success(`Navigating to ${menuItem.label}`);
-            }
-
         } catch (error) {
             console.error('Navigation error:', error);
             toast.error("Failed to navigate");
         } finally {
-            // Clear loading state after a short delay to allow route change
             setTimeout(() => {
                 setLoadingRoute(null);
             }, 500);
@@ -135,22 +127,22 @@ function SideNav({navState, activeRoute = "/", adminData}) {
 
     const IconWithBadge = ({Icon, count = 0, isLoading = false}) => (
         <span className="relative inline-flex items-center justify-center w-5 h-5 flex-shrink-0">
-      {isLoading ? (
-          <Loader2 className="w-5 h-5 animate-spin"/>
-      ) : (
-          <Icon className="w-5 h-5"/>
-      )}
+            {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin"/>
+            ) : (
+                <Icon className="w-5 h-5"/>
+            )}
             {count > 0 && !isLoading && (
                 <span className="absolute -top-1.5 -right-1.5">
-          <Badge
-              variant="destructive"
-              className="h-4 min-w-4 px-1 text-[10px] leading-none rounded-full flex items-center justify-center"
-          >
-            {count > 99 ? '99+' : count}
-          </Badge>
-        </span>
+                    <Badge
+                        variant="destructive"
+                        className="h-4 min-w-4 px-1 text-[10px] leading-none rounded-full flex items-center justify-center animate-pulse"
+                    >
+                        {count > 99 ? '99+' : count}
+                    </Badge>
+                </span>
             )}
-    </span>
+        </span>
     );
 
     return (

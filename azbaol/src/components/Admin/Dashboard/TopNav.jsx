@@ -1,15 +1,14 @@
+// components/Layout/TopNav.jsx
+'use client';
+
 import { Menu, Bell, Search, User, ChevronDown, Sun, Moon, Settings, LogOut, UserCircle, Wrench, BellDot } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ModeToggle } from "@/components/ModeToggle";
 import NotificationDropdown from "@/components/Admin/Notification/NotificationDropdown";
-import { useNotifications } from "@/contexts/NotificationContext";
 
 function TopNav({ onToggleSideNav, adminData }) {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
-
-    // Get notification state from context
-    const { unreadCount, hasUnread, isConnected } = useNotifications();
 
     // Update time every minute
     useEffect(() => {
@@ -105,16 +104,9 @@ function TopNav({ onToggleSideNav, adminData }) {
                     {/* Light/Dark Mode Toggle */}
                     <ModeToggle/>
 
-                    {/* Notification Dropdown - Integrated */}
+                    {/* Notification Dropdown - Now using Zustand */}
                     <div className="relative">
                         <NotificationDropdown />
-
-                        {/* Socket Connection Indicator (optional - for debugging) */}
-                        {!isConnected && (
-                            <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-yellow-500 rounded-full"
-                                 title="Reconnecting..."
-                            />
-                        )}
                     </div>
 
                     {/* User Profile Dropdown */}

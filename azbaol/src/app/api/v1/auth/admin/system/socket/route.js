@@ -8,6 +8,7 @@ export async function GET(request) {
         // This should validate the session and ensure admin role
         await requireRole(["admin"]);
 
+
         // Get user data (adjust based on how your guard returns user)
         const user = await AuthController.apiGuardWithPermission("admin", "socket", "manage");
 
