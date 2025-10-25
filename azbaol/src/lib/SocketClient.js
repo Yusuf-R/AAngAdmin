@@ -121,6 +121,31 @@ class SocketClient {
                 serverTime: data.serverTime,
             });
         });
+
+        // Add Chat Events
+        this.socket.on('chat:message:new', (data) => {
+            console.log('📩 Received new message:', data);
+            this.emitEvent('chat-message-received', data);
+        });
+
+        this.socket.on('chat:message:sent', (data) => {
+            console.log('✅ Message delivered to server:', data);
+            this.emitEvent('chat-message-confirmed', data);
+        });
+
+        this.socket.on('chat:typing:start', (data) => {
+            this.emitEvent('chat-user-typing', { ...data, isTyping: true });
+        });
+
+        this.socket.on('chat:typing:stop', (data) => {
+            this.emitEvent('chat-user-typing', { ...data, isTyping: false });
+        });
+
+        this.socket.on('chat:error', (error) => {
+            console.error('Chat error:', error);
+            this.emitEvent('chat-error', error);
+        });
+
     }
 
     // --- Event Emitter helpers ---
@@ -210,6 +235,58 @@ class SocketClient {
         if (this.latencyTests.length === 0) return 0;
         return this.latencyTests.reduce((sum, val) => sum + val, 0) / this.latencyTests.length;
     }
+
+    // Chat things
+
+    joinConversation(conversationId) {
+        if (!this.isConnected) {
+            console.warn('Socket not connected. Cannot join conversation.');
+            return false;
+        }
+
+        this.socket.emit('chat:join-conversation', conversationId);
+        console.log(`📨 Joined conversation: ${conversationId}`);
+        return true;
+    }
+
+    leaveConversation(conversationId) {
+        if (!this.isConnected) return false;
+
+        this.socket.emit('chat:leave-conversation', conversationId);
+        console.log(`🚪 Left conversation: ${conversationId}`);
+        return true;
+    }
+
+    sendChatMessage(conversationId, messageData, source='web') {
+        if (!this.isConnected) {
+            console.error('Socket not connected. Message not sent.');
+            return false;
+        }
+
+        this.socket.emit('chat:send-message', {
+            conversationId,
+            ...messageData,
+            source,
+            clientTimestamp: new Date().toISOString()
+        });
+
+        console.log(`📤 Sent message to conversation: ${conversationId}`);
+        return true;
+    }
+
+// Typing indicators
+    startTyping(conversationId) {
+        if (!this.isConnected) return false;
+        this.socket.emit('chat:typing-start', conversationId);
+        return true;
+    }
+
+    stopTyping(conversationId) {
+        if (!this.isConnected) return false;
+        this.socket.emit('chat:typing-stop', conversationId);
+        return true;
+    }
+
 }
 
 export const socketClient = new SocketClient();

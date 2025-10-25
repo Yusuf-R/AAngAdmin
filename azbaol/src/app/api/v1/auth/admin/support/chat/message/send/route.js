@@ -1,12 +1,14 @@
+// app/api/chat/send-message/route.js
 import { NextResponse } from "next/server";
 import ChatController from "@/server/controllers/ChatController";
 import {requireRole} from "@/server/auth/guard";
 import AuthController from "@/server/controllers/AuthController";
+import { MessageDelivery } from "@/server/controllers/MessageDelivery";
 
 export async function POST(request) {
     await requireRole(["admin"]);
     try {
-        // Get user data (adjust based on how your guard returns user)
+        // Get user data
         const user = await AuthController.apiGuardWithPermission("admin", "chat", "manage");
         const body = await request.json();
         const { conversationId, messageData } = body;
@@ -18,6 +20,7 @@ export async function POST(request) {
             );
         }
 
+        // 1. ✅ FIRST: Save to database
         const result = await ChatController.sendMessage({
             conversationId,
             userId: user.id,
@@ -25,12 +28,21 @@ export async function POST(request) {
             messageData
         });
 
-        // TODO: Emit socket event for real-time delivery
-        // if (result.success) {
-        //     socketServer.to(conversationId).emit('new_message', result.data);
-        // }
+        // 2. ❌ If DB save fails, STOP IMMEDIATELY - no delivery!
+        if (!result.success) {
+            return NextResponse.json(result);
+        }
 
-        return NextResponse.json(result);
+        // 3. ✅ ONLY if DB save succeeds: Attempt real-time delivery
+        const savedMessage = result.data;
+        const deliveryResult = await MessageDelivery.deliverMessage(conversationId, savedMessage);
+
+        return NextResponse.json({
+            ...result,
+            realtimeDelivery: deliveryResult.success ? deliveryResult.method : 'failed',
+            deliveryDetails: deliveryResult
+        });
+
     } catch (error) {
         console.error('API Error:', error);
         return NextResponse.json(

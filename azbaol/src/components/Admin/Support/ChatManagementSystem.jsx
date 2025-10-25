@@ -18,14 +18,32 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-// import {queryClient} from "@/lib/queryClient"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
 import {Avatar, AvatarFallback, AvatarImage} from '@/components/ui/avatar';
 import {ScrollArea} from '@/components/ui/scroll-area';
 import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
 import {useRouter} from "next/navigation";
 import AdminUtils from '@/utils/AdminUtils';
+import {socketClient} from '@/lib/SocketClient';
 import {toast} from 'sonner';
+
+// Add custom CSS for hiding scrollbar
+if (typeof document !== 'undefined') {
+    const style = document.createElement('style');
+    style.textContent = `
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+    `;
+    if (!document.querySelector('#scrollbar-hide-style')) {
+        style.id = 'scrollbar-hide-style';
+        document.head.appendChild(style);
+    }
+}
 
 function timeAgo(dateInput) {
     let date;
@@ -53,7 +71,7 @@ function timeAgo(dateInput) {
     if (diffDay < 7) return `${diffDay}d ago`;
 
     // For older dates, show actual date
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
 }
 
 function formatMessageTime(date) {
@@ -218,22 +236,23 @@ const ConversationListItem = ({conversation, isActive, onClick, onDelete}) => {
 };
 
 // Message Bubble
-const MessageBubble = ({message, isCurrentUser}) => {
+const MessageBubble = ({message, isCurrentUser, senderName}) => {
     if (message.isOptimistic) {
         return (
             <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-4 opacity-60`}>
                 <div className={`flex gap-2 max-w-[70%] ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
                     {!isCurrentUser && (
                         <Avatar className="w-8 h-8 flex-shrink-0">
-                            <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-600 text-white text-xs">
-                                {message.senderRole?.[0]?.toUpperCase()}
+                            <AvatarFallback
+                                className="bg-gradient-to-br from-purple-500 to-pink-600 text-white text-xs">
+                                {senderName?.[0]?.toUpperCase() || 'U'}
                             </AvatarFallback>
                         </Avatar>
                     )}
 
                     <div>
                         {!isCurrentUser && (
-                            <p className="text-xs text-muted-foreground mb-1 capitalize">{message.senderRole}</p>
+                            <p className="text-xs text-muted-foreground mb-1">{senderName || 'User'}</p>
                         )}
 
                         <div
@@ -250,7 +269,7 @@ const MessageBubble = ({message, isCurrentUser}) => {
 
                         <div className={`flex items-center gap-1 mt-1 ${isCurrentUser ? 'justify-end' : ''}`}>
                             <span className="text-xs text-muted-foreground">Sending...</span>
-                            {isCurrentUser && <Clock className="w-3 h-3 text-muted-foreground" />}
+                            {isCurrentUser && <Clock className="w-3 h-3 text-muted-foreground"/>}
                         </div>
                     </div>
                 </div>
@@ -274,14 +293,14 @@ const MessageBubble = ({message, isCurrentUser}) => {
                 {!isCurrentUser && (
                     <Avatar className="w-8 h-8 flex-shrink-0">
                         <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-600 text-white text-xs">
-                            {message.senderRole?.[0]?.toUpperCase()}
+                            {senderName?.[0]?.toUpperCase() || 'U'}
                         </AvatarFallback>
                     </Avatar>
                 )}
 
                 <div>
                     {!isCurrentUser && (
-                        <p className="text-xs text-muted-foreground mb-1 capitalize">{message.senderRole}</p>
+                        <p className="text-xs text-muted-foreground mb-1">{senderName || 'User'}</p>
                     )}
 
                     <div
@@ -300,7 +319,7 @@ const MessageBubble = ({message, isCurrentUser}) => {
             <span className="text-xs text-muted-foreground">
               {formatMessageTime(message.createdAt)}
             </span>
-                        {isCurrentUser && <CheckCheck className="w-4 h-4 text-blue-500" />}
+                        {isCurrentUser && <CheckCheck className="w-4 h-4 text-blue-500"/>}
                     </div>
                 </div>
             </div>
@@ -454,6 +473,7 @@ const MessageInput = ({onSend, disabled}) => {
 export default function ChatManagement({initialData, adminUserId}) {
     const router = useRouter();
     const queryClient = useQueryClient();
+    const [isSocketConnected, setIsSocketConnected] = useState(false);
 
     const [activeTab, setActiveTab] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
@@ -479,19 +499,14 @@ export default function ChatManagement({initialData, adminUserId}) {
     });
 
     // Mutation for sending messages
-    // Mutation for sending messages - FIXED VERSION
     const sendMessageMutation = useMutation({
         mutationFn: async (messageData) => {
             return await AdminUtils.sendMessage(activeConversation._id, messageData);
         },
         onMutate: async (messageData) => {
-            // Cancel any outgoing refetches
             await queryClient.cancelQueries(['messages', activeConversation._id]);
-
-            // Snapshot the previous value
             const previousMessages = queryClient.getQueryData(['messages', activeConversation._id]);
 
-            // Create optimistic message
             const optimisticMessage = {
                 _id: `optimistic-${Date.now()}`,
                 conversationId: activeConversation._id,
@@ -504,7 +519,6 @@ export default function ChatManagement({initialData, adminUserId}) {
                 seq: (previousMessages?.data?.messages?.length || 0) + 1
             };
 
-            // Optimistically update messages
             queryClient.setQueryData(['messages', activeConversation._id], (old) => ({
                 ...old,
                 data: {
@@ -513,7 +527,6 @@ export default function ChatManagement({initialData, adminUserId}) {
                 }
             }));
 
-            // Optimistically update conversations list
             setConversations(prev => prev.map(conv =>
                 conv._id === activeConversation._id
                     ? {
@@ -529,15 +542,13 @@ export default function ChatManagement({initialData, adminUserId}) {
                     : conv
             ));
 
-            return { previousMessages, optimisticMessage };
+            return {previousMessages, optimisticMessage};
         },
         onSuccess: (result, messageData, context) => {
             if (result.success) {
-                // Replace optimistic message with real message from server
                 queryClient.setQueryData(['messages', activeConversation._id], (old) => {
                     if (!old?.data?.messages) return old;
 
-                    // Remove optimistic message and add real one
                     const filteredMessages = old.data.messages.filter(
                         msg => !msg.isOptimistic
                     );
@@ -551,7 +562,6 @@ export default function ChatManagement({initialData, adminUserId}) {
                     };
                 });
 
-                // Update conversation with real last message
                 setConversations(prev => prev.map(conv =>
                     conv._id === activeConversation._id
                         ? {
@@ -565,7 +575,6 @@ export default function ChatManagement({initialData, adminUserId}) {
             }
         },
         onError: (error, messageData, context) => {
-            // Rollback on error
             if (context?.previousMessages) {
                 queryClient.setQueryData(
                     ['messages', activeConversation._id],
@@ -573,7 +582,6 @@ export default function ChatManagement({initialData, adminUserId}) {
                 );
             }
 
-            // Rollback conversations list
             setConversations(prev => prev.map(conv =>
                 conv._id === activeConversation._id
                     ? {
@@ -590,7 +598,7 @@ export default function ChatManagement({initialData, adminUserId}) {
     // Mutation for creating/getting conversation
     const getOrCreateConvMutation = useMutation({
         mutationFn: async ({targetUserId, orderId}) => {
-            if (targetUserId === adminUserId ) {
+            if (targetUserId === adminUserId) {
                 throw new Error('Cyclic Error: Talking to yourself? 😊')
             }
 
@@ -599,13 +607,12 @@ export default function ChatManagement({initialData, adminUserId}) {
         onSuccess: (result) => {
             if (result.success) {
                 if (result.isNew) {
-                    // Add to conversations list
                     setConversations(prev => [result.data, ...prev]);
                 }
 
                 setActiveConversation(result.data);
                 setIsMobileChatOpen(true);
-                setActiveTab('all'); // Switch to ALL tab
+                setActiveTab('all');
                 handleClearSearch();
             }
         },
@@ -699,7 +706,6 @@ export default function ChatManagement({initialData, adminUserId}) {
         setActiveConversation(conversation);
         setIsMobileChatOpen(true);
 
-        // Mark as read
         if (conversation.unreadCount > 0) {
             await AdminUtils.markChatAsRead(conversation._id, conversation.messageCount);
             setConversations(prev => prev.map(conv =>
@@ -745,134 +751,242 @@ export default function ChatManagement({initialData, adminUserId}) {
     // Auto-scroll
     useEffect(() => {
         if (messagesEndRef.current && messages.length > 0) {
-            const scrollContainer = messagesEndRef.current.closest('[data-radix-scroll-area-viewport]');
-            if (scrollContainer) {
-                const isNearBottom =
-                    scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight < 100;
-
-                if (isNearBottom) {
-                    messagesEndRef.current.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'end'
-                    });
-                }
-            }
+            messagesEndRef.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'end'
+            });
         }
     }, [messages, sendMessageMutation.isPending]);
 
+    useEffect(() => {
+        const initializeSocket = async () => {
+            try {
+                await socketClient.connect();
+                setIsSocketConnected(true);
+
+                socketClient.on('disconnected', () => setIsSocketConnected(false));
+                socketClient.on('connected', () => setIsSocketConnected(true));
+
+            } catch (error) {
+                console.error('Failed to connect to socket:', error);
+            }
+        };
+
+        initializeSocket();
+
+        return () => {
+            socketClient.off('disconnected');
+            socketClient.off('connected');
+        };
+    }, []);
+
+    // Listen for incoming messages
+    useEffect(() => {
+        const handleIncomingMessage = (message) => {
+            console.log('📩 FRONTEND: Received socket message:', message);
+            console.log('📩 Active conversation ID:', activeConversation?._id);
+            console.log('📩 Message conversation ID:', message.conversationId);
+            if (message.conversationId === activeConversation?._id) {
+                console.log('✅ Adding message to UI');
+                queryClient.setQueryData(['messages', activeConversation._id], (old) => ({
+                    ...old,
+                    data: {
+                        ...old?.data,
+                        messages: [...(old?.data?.messages || []), message]
+                    }
+                }));
+            } else {
+                console.log('❌ Message not for current conversation');
+            }
+        };
+
+        socketClient.on('chat-message-received', handleIncomingMessage);
+        socketClient.socket?.on('chat:message:new', (data) => {
+            console.log('🔧 RAW SOCKET EVENT:', data);
+        });
+
+        return () => {
+            socketClient.off('chat-message-received', handleIncomingMessage);
+            socketClient.socket?.off('chat:message:new');
+        };
+    }, [activeConversation]);
+
+    // Join conversation when it becomes active
+    useEffect(() => {
+        if (activeConversation && isSocketConnected) {
+            socketClient.joinConversation(activeConversation._id);
+        }
+
+        return () => {
+            if (activeConversation) {
+                socketClient.leaveConversation(activeConversation._id);
+            }
+        };
+    }, [activeConversation, isSocketConnected]);
+
     return (
         <div className="flex flex-col h-screen p-2 gap-6">
-            <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.back()}
-                className="gap-2"
-            >
-                <ArrowLeft className="w-4 h-4"/>
-                Back
-            </Button>
-            {/* Header */}
-            <div className="bg-card rounded-2xl border p-6">
+            <div className="w-fit">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.back()}
+                    className="gap-2"
+                >
+                    <ArrowLeft className="w-4 h-4"/>
+                    Back
+                </Button>
+            </div>
 
-                <div className="flex items-center justify-between flex-wrap gap-4">
-                    <div className="flex items-center gap-3">
+            {/* Header (sticky, no wrap, stable alignment) */}
+            <div className="sticky top-2 z-20 bg-card rounded-2xl border p-6">
+                <div className="flex items-center justify-between gap-4 flex-wrap md:flex-nowrap">
+                    {/* Title block */}
+                    <div className="flex items-center gap-3 flex-none">
                         <div className="p-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white">
-                            <MessageCircle className="w-8 h-8"/>
+                            <MessageCircle className="w-8 h-8" />
                         </div>
-                        <div>
+                        <div className="leading-none">
                             <h1 className="text-3xl font-bold">Communication Hub</h1>
-                            <p className="text-muted-foreground">Start conversations and manage chats</p>
+                            <p className="text-muted-foreground mt-1">Start conversations and manage chats</p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-6">
-                        <div className="text-center">
-                            <p className="text-2xl font-bold text-foreground">{stats.totalUsers || 0}</p>
-                            <p className="text-xs text-muted-foreground">Total Users</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-2xl font-bold text-blue-600">{stats.admins || 0}</p>
-                            <p className="text-xs text-muted-foreground">Admins</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-2xl font-bold text-green-600">{stats.clients || 0}</p>
-                            <p className="text-xs text-muted-foreground">Clients</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-2xl font-bold text-purple-600">{stats.drivers || 0}</p>
-                            <p className="text-xs text-muted-foreground">Drivers</p>
+                    {/* Stats row */}
+                    <div className="flex items-stretch gap-4 px-4 py-2 bg-muted/50 rounded-lg border flex-none md:ml-auto">
+                        {/* Make the row non-wrapping so nothing jumps */}
+                        <div className="flex items-center gap-4 flex-nowrap">
+
+                            {/* Total Users */}
+                            <div className="flex items-center justify-center gap-2 w-28 h-12">
+                                <UserIcon className="w-4 h-4 text-muted-foreground" />
+                                <div className="text-center leading-none">
+                                    <p className="text-2xl font-bold text-foreground">{stats.totalUsers || 0}</p>
+                                    <p className="text-[11px] text-muted-foreground mt-[2px]">Total Users</p>
+                                </div>
+                            </div>
+
+                            <div className="h-8 w-px bg-border" />
+
+                            {/* Admins */}
+                            <div className="flex items-center justify-center gap-2 w-28 h-12">
+                                <Shield className="w-4 h-4 text-blue-600" />
+                                <div className="text-center leading-none">
+                                    <p className="text-2xl font-bold text-blue-600">{stats.admins || 0}</p>
+                                    <p className="text-[11px] text-muted-foreground mt-[2px]">Admins</p>
+                                </div>
+                            </div>
+
+                            <div className="h-8 w-px bg-border" />
+
+                            {/* Clients */}
+                            <div className="flex items-center justify-center gap-2 w-28 h-12">
+                                <Package className="w-4 h-4 text-green-600" />
+                                <div className="text-center leading-none">
+                                    <p className="text-2xl font-bold text-green-600">{stats.clients || 0}</p>
+                                    <p className="text-[11px] text-muted-foreground mt-[2px]">Clients</p>
+                                </div>
+                            </div>
+
+                            <div className="h-8 w-px bg-border" />
+
+                            {/* Drivers */}
+                            <div className="flex items-center justify-center gap-2 w-28 h-12">
+                                <Truck className="w-4 h-4 text-purple-600" />
+                                <div className="text-center leading-none">
+                                    <p className="text-2xl font-bold text-purple-600">{stats.drivers || 0}</p>
+                                    <p className="text-[11px] text-muted-foreground mt-[2px]">Drivers</p>
+                                </div>
+                            </div>
+
+                            <div className="h-8 w-px bg-border" />
+
+                            {/* Live indicator (locked alignment) */}
+                            <div className="flex items-center justify-center gap-2 w-28 h-12">
+                                <div className={`inline-flex items-center justify-center w-2.5 h-2.5 rounded-full ${isSocketConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                                <div className="text-center leading-none">
+                                    <p className={`text-sm font-semibold ${isSocketConnected ? 'text-green-600' : 'text-red-600'}`}>
+                                        {isSocketConnected ? 'Live' : 'Offline'}
+                                    </p>
+                                    <p className="text-[11px] text-muted-foreground mt-[2px]">Real-time</p>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Main Interface */}
-            <div className="bg-card rounded-2xl border overflow-hidden flex-1">
+            <div className="bg-card rounded-2xl border flex-1 min-h-0 overflow-hidden">
                 <div className="grid lg:grid-cols-[550px_1fr] h-full">
-                    {/* Left Panel */}
-                    <div className={`border-r flex flex-col ${isMobileChatOpen ? 'hidden lg:flex' : 'flex'}`}>
-                        <div className="p-4 border-b space-y-3">
-                            <div className="flex items-center gap-2">
-                                <div className="relative flex-1">
-                                    <Search
-                                        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"/>
-                                    <Input
-                                        placeholder="Search users or conversations..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        onKeyPress={handleSearchKeyPress}
-                                        className="pl-10 pr-4"
-                                    />
-                                </div>
 
-                                <Button
-                                    onClick={handleSearch}
-                                    disabled={isSearching || !searchQuery.trim()}
-                                    className="px-4"
-                                >
-                                    {isSearching ? (
-                                        <RefreshCw className="h-4 w-4 animate-spin"/>
-                                    ) : (
-                                        <Search className="h-4 w-4"/>
+                    {/* ========== LHS ========== */}
+                    <aside className={`border-r flex flex-col min-h-0 ${isMobileChatOpen ? 'hidden lg:flex' : 'flex'}`}>
+                        {/* LHS Header: search + tabs (non-scrolling) */}
+                        <div className="p-4 border-b shrink-0">
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <div className="relative flex-1">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Search users or conversations..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            onKeyPress={handleSearchKeyPress}
+                                            className="pl-10 pr-4"
+                                        />
+                                    </div>
+
+                                    <Button
+                                        onClick={handleSearch}
+                                        disabled={isSearching || !searchQuery.trim()}
+                                        className="px-4"
+                                    >
+                                        {isSearching ? (
+                                            <RefreshCw className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Search className="h-4 w-4" />
+                                        )}
+                                    </Button>
+
+                                    {searchResults && (
+                                        <Button
+                                            onClick={handleClearSearch}
+                                            variant="outline"
+                                            size="icon"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
                                     )}
-                                </Button>
+                                </div>
 
                                 {searchResults && (
-                                    <Button
-                                        onClick={handleClearSearch}
-                                        variant="outline"
-                                        size="icon"
-                                    >
-                                        <X className="h-4 w-4"/>
-                                    </Button>
+                                    <div className="text-sm text-muted-foreground">
+                                        Found {searchResults.length} result(s)
+                                    </div>
                                 )}
+
+                                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                                    <TabsList className="w-full grid grid-cols-4">
+                                        <TabsTrigger value="all" className="text-xs">
+                                            All
+                                            {conversations.filter(c => c.unreadCount > 0).length > 0 && (
+                                                <Badge className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-blue-600 text-white text-[10px]">
+                                                    {conversations.filter(c => c.unreadCount > 0).length}
+                                                </Badge>
+                                            )}
+                                        </TabsTrigger>
+                                        <TabsTrigger value="client" className="text-xs">Client</TabsTrigger>
+                                        <TabsTrigger value="driver" className="text-xs">Driver</TabsTrigger>
+                                        <TabsTrigger value="admin" className="text-xs">Admin</TabsTrigger>
+                                    </TabsList>
+                                </Tabs>
                             </div>
-
-                            {searchResults && (
-                                <div className="text-sm text-muted-foreground">
-                                    Found {searchResults.length} result(s)
-                                </div>
-                            )}
-
-                            <Tabs value={activeTab} onValueChange={setActiveTab}>
-                                <TabsList className="w-full grid grid-cols-4">
-                                    <TabsTrigger value="all" className="text-xs">
-                                        All
-                                        {conversations.filter(c => c.unreadCount > 0).length > 0 && (
-                                            <Badge
-                                                className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-blue-600 text-white text-[10px]">
-                                                {conversations.filter(c => c.unreadCount > 0).length}
-                                            </Badge>
-                                        )}
-                                    </TabsTrigger>
-                                    <TabsTrigger value="client" className="text-xs">Client</TabsTrigger>
-                                    <TabsTrigger value="driver" className="text-xs">Driver</TabsTrigger>
-                                    <TabsTrigger value="admin" className="text-xs">Admin</TabsTrigger>
-                                </TabsList>
-                            </Tabs>
                         </div>
 
-                        <ScrollArea className="flex-1">
+                        {/* LHS List (scrolls independently) */}
+                        <div className="flex-1 overflow-y-auto scrollbar-hide">
                             {displayData.data.length > 0 ? (
                                 displayData.type === 'conversations' ? (
                                     displayData.data.map(conversation => (
@@ -895,12 +1009,11 @@ export default function ChatManagement({initialData, adminUserId}) {
                                 )
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-                                    <div
-                                        className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center mb-4">
+                                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center mb-4">
                                         {activeTab === 'all' ? (
-                                            <MessageCircle className="w-10 h-10 text-purple-600"/>
+                                            <MessageCircle className="w-10 h-10 text-purple-600" />
                                         ) : (
-                                            <UserIcon className="w-10 h-10 text-purple-600"/>
+                                            <UserIcon className="w-10 h-10 text-purple-600" />
                                         )}
                                     </div>
                                     <h3 className="font-semibold mb-2">
@@ -915,23 +1028,28 @@ export default function ChatManagement({initialData, adminUserId}) {
                                     </p>
                                 </div>
                             )}
-                        </ScrollArea>
-                    </div>
+                        </div>
+                    </aside>
 
-                    {/* Right Panel */}
-                    <div className={`flex flex-col ${!isMobileChatOpen ? 'hidden lg:flex' : 'flex'}`}>
+                    {/* ========== RHS ========== */}
+                    <section className={`flex flex-col min-h-0 ${!isMobileChatOpen ? 'hidden lg:flex' : 'flex'}`}>
+                        {/* Chat header (non-scrolling) */}
                         {activeConversation ? (
                             <>
-                                <ChatHeader
-                                    conversation={activeConversation}
-                                    onClose={handleCloseChat}
-                                    onTogglePin={handleTogglePin}
-                                    onDelete={() => handleDeleteConversation(activeConversation._id)}
-                                />
-                                <ScrollArea className="flex-1 p-4">
+                                <div className="shrink-0 border-b">
+                                    <ChatHeader
+                                        conversation={activeConversation}
+                                        onClose={handleCloseChat}
+                                        onTogglePin={handleTogglePin}
+                                        onDelete={() => handleDeleteConversation(activeConversation._id)}
+                                    />
+                                </div>
+
+                                {/* Messages area (scrolls independently, input always visible) */}
+                                <div className="flex-1 overflow-y-auto p-4 scrollbar-hide scroll-smooth">
                                     {isLoadingMessages ? (
                                         <div className="flex items-center justify-center h-full">
-                                            <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground"/>
+                                            <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
                                         </div>
                                     ) : (
                                         <>
@@ -940,23 +1058,26 @@ export default function ChatManagement({initialData, adminUserId}) {
                                                     key={message._id}
                                                     message={message}
                                                     isCurrentUser={message.senderId === adminUserId}
+                                                    senderName={message.senderId === adminUserId ? 'You' : activeConversation?.userInfo?.fullName}
                                                 />
                                             ))}
-                                            <div ref={messagesEndRef}/>
+                                            <div ref={messagesEndRef} />
                                         </>
                                     )}
-                                </ScrollArea>
+                                </div>
 
-                                <MessageInput
-                                    onSend={handleSendMessage}
-                                    disabled={sendMessageMutation.isPending}
-                                />
+                                {/* Input bar (always visible) */}
+                                <div className="shrink-0 border-t bg-card">
+                                    <MessageInput
+                                        onSend={handleSendMessage}
+                                        disabled={sendMessageMutation.isPending}
+                                    />
+                                </div>
                             </>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                                <div
-                                    className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center mb-4">
-                                    <MessageCircle className="w-10 h-10 text-purple-600"/>
+                                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center mb-4">
+                                    <MessageCircle className="w-10 h-10 text-purple-600" />
                                 </div>
                                 <h3 className="text-xl font-semibold mb-2">Select a user to chat</h3>
                                 <p className="text-muted-foreground max-w-sm">
@@ -964,9 +1085,10 @@ export default function ChatManagement({initialData, adminUserId}) {
                                 </p>
                             </div>
                         )}
-                    </div>
+                    </section>
                 </div>
             </div>
+
         </div>
     );
 }

@@ -5,8 +5,8 @@ import AdminController from "@/server/controllers/AdminController";
 import {ApiResponseHandler} from "@/server/utils/apiResponseHandler";
 
 export async function GET(request) {
+    await requireRole(["admin"]);
     try {
-        await requireRole(["admin"]);
         const limit = 10;
         const adminActionOnly = true
 

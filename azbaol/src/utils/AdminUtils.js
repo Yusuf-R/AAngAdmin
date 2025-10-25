@@ -432,7 +432,7 @@ class AdminUtils {
 
             return response.data;
         } catch (error) {
-            console.error('Get top unread notifications error:', error);
+            console.log('Get top unread notifications error:', error);
             return {success: false, error: error.message};
         }
     }

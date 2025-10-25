@@ -3046,7 +3046,7 @@ class AdminController {
             return JSON.parse(JSON.stringify(result));
 
         } catch (err) {
-            console.error('Top notifications fetch error:', err);
+            console.log('Top notifications fetch error:', err);
             return {
                 success: false,
                 notifications: [],

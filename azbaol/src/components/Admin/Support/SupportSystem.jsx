@@ -346,7 +346,7 @@ function Architecture() {
                         <div className="p-4 bg-purple-600 text-white rounded-lg shadow-lg">
                             <UserCheck className="w-8 h-8 mx-auto mb-2" />
                             <p className="font-semibold">Clients</p>
-                            <p className="text-xs opacity-80">Web Users</p>
+                            <p className="text-xs opacity-80">Mobile App</p>
                         </div>
                         <p className="text-sm mt-2 text-gray-600 dark:text-gray-400">Customer Platform</p>
                     </div>
