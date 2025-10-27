@@ -34,6 +34,7 @@ class SocketClient {
                 ...(options.auth || {}),
             },
             ...options,
+            reconnection: true
         });
 
         this._connectingPromise = new Promise((resolve, reject) => {

@@ -41,7 +41,7 @@ export class MessageDelivery {
                 throw new Error(error.error || 'HTTP delivery failed');
             }
         } catch (error) {
-            console.error('❌ HTTP webhook delivery failed:', error.message);
+            console.log('❌ HTTP webhook delivery failed:', error.message);
             return {
                 success: false,
                 error: error.message,
