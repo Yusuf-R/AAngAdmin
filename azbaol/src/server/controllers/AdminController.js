@@ -1300,16 +1300,30 @@ class AdminController {
             await dbClient.connect();
             const {Order} = await getOrderModels();
 
+            await Order.updateOne(
+                { _id },
+                {
+                    $set: {
+                        "orderTrackingHistory.$[elem].isCurrent": false,
+                        "orderTrackingHistory.$[elem].isCompleted": true
+                    }
+                },
+                {
+                    arrayFilters: [{ "elem.isCurrent": true }]
+                }
+            );
+
             const orderData = await Order.findById(_id);
             if (!orderData) {
                 throw new Error('Order not found');
             }
 
+
             if (status === 'approved') {
                 return await Order.findOneAndUpdate(
                     {_id},
                     {
-                        $set: {status: 'broadcast'},
+                        $set: {status: 'broadcast' },
                         $push: {
                             orderTrackingHistory: {
                                 $each: [

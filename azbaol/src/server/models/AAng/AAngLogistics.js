@@ -144,25 +144,22 @@ const DriverSchema = new Schema({
     // Current License Number - keep for backward compatibility
     licenseNumber: String,
     vehicleType: String, // Keep for backward compatibility
-
     // Operational Status
     availabilityStatus: {
         type: String,
         enum: ["online", "offline", "on-delivery", "break", "maintenance"],
         default: "offline",
     },
-
     operationalStatus: {
         currentOrderId: {type: Schema.Types.ObjectId, ref: 'Order'},
         lastLocationUpdate: {type: Date, default: Date.now},
         batteryLevel: {type: Number, min: 0, max: 100},
         appVersion: String,
         deviceModel: String,
-        connectionQuality: {type: String, enum: ["excellent", "good", "poor", "offline"], default: "offline"},
+        connectionQuality: {type: String, enum: ["excellent", "good", "poor", "offline"], default: "excellent"},
         isActive: {type: Boolean, default: false},
         lastActiveAt: {type: Date, default: Date.now}
     },
-
     // Real-time Location & Movement
     currentLocation: {
         coordinates: {
@@ -177,7 +174,6 @@ const DriverSchema = new Schema({
         isMoving: {type: Boolean, default: false},
         zone: String
     },
-
     // Vehicle & Equipment Details
     vehicleDetails: {
         type: {type: String, enum: ['bicycle', 'motorcycle', 'tricycle', 'van', 'truck', 'car']},
@@ -262,6 +258,7 @@ const DriverSchema = new Schema({
         }]
     },
 
+    // Replace existing verification object with this comprehensive structure
     verification: {
         // Overall Status
         overallStatus: {
@@ -574,6 +571,7 @@ const DriverSchema = new Schema({
             feedback: String
         }]
     },
+
     // Schedule & Availability
     schedule: {
         preferredWorkingHours: {
@@ -967,7 +965,7 @@ const AAngSchema = new Schema({
     pinVerificationToken: {
         token: String,
         email: String,
-        purpose: {type: String, enum: ['CHANGE_PIN', 'RESET_PIN', 'SET_PIN']},
+        purpose: {type: String, enum: ['CHANGE_PIN',  'RESET_PIN', 'SET_PIN']},
         createdAt: {type: Date},
         expiresAt: {
             type: Date,

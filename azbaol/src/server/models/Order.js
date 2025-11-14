@@ -142,20 +142,38 @@ const OrderTrackingHistorySchema = new Schema({
         type: String,
         required: true,
         enum: [
+            // Order Creation Phase
             'order_created',
             'order_submitted',
-            'payment_confirmed',
+            'payment_initiated',        // When payment starts
+            'payment_confirmed',         // When payment succeeds
+            'payment_completed',
+
+            // Admin Review Phase
             'admin_review_started',
             'admin_review_completed',
+            'admin_approved',
+            'admin_rejected',
+
+            // Driver Assignment Phase
             'driver_assignment_started',
             'driver_assigned',
+
+            // Pickup Phase
             'en_route_to_pickup',
             'arrived_at_pickup',
             'package_picked_up',
-            'in_transit',
-            'arrived_at_destination',
+
+            // Transit Phase
+            'en_route_to_dropoff',
+            'arrived_at_dropoff',
+            'package_delivered',
+
+            // Completion Phase
             'delivery_completed',
             'delivery_failed',
+
+            // Cancellation
             'cancelled',
             'system_admin_rejected'
         ]
@@ -208,6 +226,7 @@ const DriverAssignedTrackingSchema = new Schema({
     driverId: {type: Schema.Types.ObjectId, ref: 'Base', index: true},
     driverInfo: {
         name: String,
+        email: String,
         phone: String,
         vehicleType: String,
         vehicleNumber: String,
@@ -248,6 +267,7 @@ const DriverAssignedTrackingSchema = new Schema({
         type: String,
         enum: ['assigned', 'accepted', 'rejected', 'cancelled', 'completed']
     },
+
     rejectionReason: String,
     responseTime: Number,
 }, {_id: false, strictPopulate: false  });
@@ -267,7 +287,6 @@ const OrderSchema = new Schema({
         required: true,
         index: true
     },
-    // Order Type and Priority
     orderType: {
         type: String,
         enum: ['instant', 'scheduled', 'recurring'],
@@ -278,11 +297,8 @@ const OrderSchema = new Schema({
         enum: ['low', 'normal', 'high', 'urgent'],
         default: 'normal'
     },
-    // Scheduling
     scheduledPickup: Date,
-    // Package Details
     package: {type: PackageSchema, required: true},
-    // Delivery Details
     location: {
         pickUp: {type: LocationSchema, required: true},
         dropOff: {type: LocationSchema, required: true},
@@ -337,11 +353,10 @@ const OrderSchema = new Schema({
             'pending',         // Waiting for driver assignment
             'broadcast',       // Broadcasted to available drivers
             'assigned',        // Driver assigned
-            'confirmed',       // Driver confirmed pickup
+            'pickedUp-confirmed',       // Driver confirmed pickup
             'en_route_pickup', // Driver heading to pickup
+            'en_route_dropoff', // Driver heading to pickup
             'arrived_pickup',  // Driver at pickup location
-            'picked_up',       // Package collected
-            'in_transit',      // On the way to delivery
             'arrived_dropoff', // Driver at delivery location
             'delivered',       // Successfully delivered
             'failed',          // Delivery failed
@@ -361,7 +376,6 @@ const OrderSchema = new Schema({
         verifiedAt: Date,
         verifiedBy: {
             name: String,
-            phone: String
         }
     },
     pickupConfirmation: {
@@ -371,6 +385,7 @@ const OrderSchema = new Schema({
         },
         confirmedAt: Date,
         photos: [String],
+        videos: [String],
         signature: String
     },
     deliveryConfirmation: {
@@ -398,12 +413,29 @@ const OrderSchema = new Schema({
         clientRating: {
             stars: {type: Number, min: 1, max: 5},
             feedback: String,
-            ratedAt: Date
+            categories: [{  // NEW: Specific feedback categories
+                category: {type: String, enum: ['professionalism', 'timeliness', 'communication', 'care']},
+                rating: {type: Number, min: 1, max: 5}
+            }],
+            wouldRecommend: {type: Boolean},  // NEW
+            ratedAt: Date,
+            canEdit: {type: Boolean, default: true}  // NEW: Allow one-time edit
         },
         driverRating: {
             stars: {type: Number, min: 1, max: 5},
             feedback: String,
-            ratedAt: Date
+            categories: [{  // NEW
+                category: {type: String, enum: ['communication', 'package_condition', 'location_accuracy', 'payment']},
+                rating: {type: Number, min: 1, max: 5}
+            }],
+            wouldRecommend: {type: Boolean},  // NEW
+            ratedAt: Date,
+            canEdit: {type: Boolean, default: true}  // NEW
+        },
+        // NEW: Track if ratings are pending
+        pendingRatings: {
+            client: {type: Boolean, default: true},
+            driver: {type: Boolean, default: true}
         }
     },
 
