@@ -1,5 +1,6 @@
 // AdminController -- every matter related to admin execution
 import getModels from "@/server/models/AAng/AAngLogistics";
+import getFinanceModels from "@/server/models/Finance/FinancialTransactions";
 import dbClient from "@/server/db/mongoDb";
 import mongoose from "mongoose";
 import AuthController from "@/server/controllers/AuthController";
@@ -8,6 +9,7 @@ import getOrderModels from "@/server/models/Order";
 import Notification from "@/server/models/Notification"
 import NotificationService from "@/server/services/NotificationService"
 import {NextResponse} from "next/server";
+import getFinancialModels from "@/server/models/Finance/FinancialTransactions";
 
 const {Order} = await getOrderModels();
 const {Admin, AAngBase, Driver} = await getModels()
@@ -36,7 +38,7 @@ class AdminController {
             }
             return adminData;
         } catch (err) {
-            console.error('Admin profile fetch error:', err);
+            console.log('Admin profile fetch error:', err);
             throw new Error('Failed to fetch admin profile');
         }
     }
@@ -138,7 +140,7 @@ class AdminController {
             };
 
         } catch (err) {
-            console.error('User fetch error:', err);
+            console.log('User fetch error:', err);
             throw new Error('Failed to fetch users');
         }
     }
@@ -242,7 +244,7 @@ class AdminController {
             });
             return (user);
         } catch (err) {
-            console.error('User create error:', err);
+            console.log('User create error:', err);
             throw new Error('Failed to create user');
         }
     }
@@ -280,7 +282,6 @@ class AdminController {
         }
     }
 
-
     static async getDataById(id) {
         try {
             await dbClient.connect();
@@ -291,7 +292,7 @@ class AdminController {
             }
             return JSON.parse(JSON.stringify(userData));
         } catch (err) {
-            console.error('User data fetch error:', err);
+            console.log('User data fetch error:', err);
             throw new Error('Failed to fetch user data');
         }
     }
@@ -562,7 +563,7 @@ class AdminController {
                 remaining: updatedTokens.length
             };
         } catch (err) {
-            console.error('Session cleanup error:', err);
+            console.log('Session cleanup error:', err);
             throw new Error(err.message);
         }
     }
@@ -626,7 +627,7 @@ class AdminController {
                 usersAffected
             };
         } catch (err) {
-            console.error('Bulk cleanup error:', err);
+            console.log('Bulk cleanup error:', err);
             throw new Error(err.message);
         }
     }
@@ -669,7 +670,7 @@ class AdminController {
 
             return stats;
         } catch (err) {
-            console.error('Stats error:', err);
+            console.log('Stats error:', err);
             throw new Error(err.message);
         }
     }
@@ -705,7 +706,7 @@ class AdminController {
                 remaining: user.sessionTokens.length
             };
         } catch (err) {
-            console.error('Delete session error:', err);
+            console.log('Delete session error:', err);
             throw new Error(err.message);
         }
     }
@@ -750,7 +751,7 @@ class AdminController {
                 timestamp: new Date().toISOString()
             };
         } catch (err) {
-            console.error('Auto-cleanup error:', err);
+            console.log('Auto-cleanup error:', err);
             throw new Error(err.message);
         }
     }
@@ -806,7 +807,7 @@ class AdminController {
                 )
             };
         } catch (err) {
-            console.error('Get session details error:', err);
+            console.log('Get session details error:', err);
             throw new Error(err.message);
         }
     }
@@ -1025,7 +1026,7 @@ class AdminController {
             return JSON.parse(JSON.stringify(result));
 
         } catch (err) {
-            console.error('Order fetch error:', err);
+            console.log('Order fetch error:', err);
             throw new Error('Failed to fetch orders data');
         }
     }
@@ -1249,7 +1250,7 @@ class AdminController {
             return JSON.parse(JSON.stringify(result));
 
         } catch (err) {
-            console.error('Client order fetch error:', err);
+            console.log('Client order fetch error:', err);
             throw new Error('Failed to fetch client orders data');
         }
     }
@@ -1284,7 +1285,7 @@ class AdminController {
             }
             return JSON.parse(JSON.stringify(orderData));
         } catch (err) {
-            console.error('User data fetch error:', err);
+            console.log('User data fetch error:', err);
             throw new Error('Failed to fetch user data');
         }
     }
@@ -1513,7 +1514,7 @@ class AdminController {
             };
 
         } catch (error) {
-            console.error('Order assignment error:', error);
+            console.log('Order assignment error:', error);
             throw new Error(`Order assignment failed: ${error.message}`);
         }
     }
@@ -1682,7 +1683,7 @@ class AdminController {
             };
 
         } catch (err) {
-            console.error('User fetch error:', err);
+            console.log('User fetch error:', err);
             throw new Error('Failed to fetch users for deletion');
         }
     }
@@ -1769,7 +1770,7 @@ class AdminController {
             };
 
         } catch (err) {
-            console.error('Order fetch error:', err);
+            console.log('Order fetch error:', err);
             throw new Error('Failed to fetch orders for deletion');
         }
     }
@@ -1848,8 +1849,842 @@ class AdminController {
         return JSON.parse(JSON.stringify(client));
     }
 
-    // In your AdminController
+    // ============================================
+    // UNIFIED DRIVER VERIFICATION HANDLER
+    // Intelligently handles BOTH new submissions AND updates
+    // Admin only needs to click approve/reject/suspend - backend does the rest
+    // ============================================
     static async updateDriverValidation(payload) {
+        await dbClient.connect();
+        const { id, action, feedback, adminId } = payload;
+
+        // Validate action
+        if (!['approve', 'reject', 'suspend'].includes(action)) {
+            throw new Error('Invalid action. Use "approve", "reject", or "suspend"');
+        }
+
+        // Verify admin exists
+        const { Admin, Driver } = await getModels();
+        const admin = await Admin.findById(adminId);
+        if (!admin) {
+            throw new Error('Admin not found');
+        }
+
+        // Find driver
+        const driver = await Driver.findById(id);
+        if (!driver) {
+            throw new Error('Driver not found');
+        }
+
+        const now = new Date();
+        const statusMap = {
+            'approve': 'approved',
+            'reject': 'rejected',
+            'suspend': 'suspended'
+        };
+        const newStatus = statusMap[action];
+
+        // ============================================
+        // INTELLIGENT DETECTION: What type of submission is this?
+        // ============================================
+        const hasPendingUpdate = driver.verification.pendingUpdate?.exists;
+        const hasActiveData = driver.verification.activeData?.approvedAt;
+        const isInitialSubmission = !hasActiveData && !hasPendingUpdate;
+
+        console.log('=== VERIFICATION DECISION CONTEXT ===');
+        console.log('Action:', action);
+        console.log('Has Pending Update:', hasPendingUpdate);
+        console.log('Has Active Data:', hasActiveData);
+        console.log('Is Initial Submission:', isInitialSubmission);
+
+        // ============================================
+        // ROUTE 1: PENDING UPDATE (Driver submitted changes)
+        // ============================================
+        if (hasPendingUpdate) {
+            return await AdminController._handleUpdateApproval(driver, action, newStatus, feedback, adminId, admin, now);
+        }
+
+        // ============================================
+        // ROUTE 2: INITIAL SUBMISSION (First time verification)
+        // ============================================
+        if (isInitialSubmission) {
+            return await AdminController._handleInitialApproval(driver, action, newStatus, feedback, adminId, now);
+        }
+
+        // ============================================
+        // ROUTE 3: RE-VERIFICATION (Previously approved, no pending update)
+        // This handles cases like document expiry, re-review requests
+        // ============================================
+        return await AdminController._handleReVerification(driver, action, newStatus, feedback, adminId, now);
+    }
+
+// ============================================
+// PRIVATE: Handle Pending Update Approval/Rejection
+// ============================================
+    static async _handleUpdateApproval(driver, action, newStatus, feedback, adminId, admin, now) {
+        const pendingUpdate = driver.verification.pendingUpdate;
+
+        console.log('📝 Processing UPDATE submission');
+        console.log('Update Type:', pendingUpdate.updateType);
+
+        if (action === 'approve') {
+            // ============================================
+            // APPROVE UPDATE
+            // ============================================
+
+            // Archive current activeData to history
+            const historyEntry = {
+                updatedAt: now,
+                updateType: pendingUpdate.updateType,
+                status: 'approved',
+                changesSummary: pendingUpdate.changesSummary,
+                reviewedBy: adminId,
+                reviewedByName: admin.fullName || admin.email,
+                feedback: feedback || 'Update approved',
+                previousData: {
+                    basicVerification: driver.verification.activeData.basicVerification,
+                    specificVerification: driver.verification.activeData.specificVerification,
+                    vehicleDetails: driver.verification.activeData.vehicleDetails
+                }
+            };
+
+            // Move proposedChanges to activeData
+            driver.verification.activeData = {
+                basicVerification: pendingUpdate.proposedChanges.basicVerification,
+                specificVerification: pendingUpdate.proposedChanges.specificVerification,
+                vehicleDetails: pendingUpdate.proposedChanges.vehicleDetails,
+                approvedAt: now,
+                approvedBy: adminId
+            };
+
+            // Update individual document statuses in NEW activeData
+            AdminController._updateAllDocumentStatuses(
+                driver.verification.activeData,
+                'approved',
+                adminId,
+                now
+            );
+
+            // Update top-level fields for backward compatibility
+            driver.vehicleDetails = pendingUpdate.proposedChanges.vehicleDetails;
+            driver.vehicleType = pendingUpdate.proposedChanges.vehicleDetails?.type;
+
+            // CRITICAL: Update overall status to approved
+            driver.verification.overallStatus = 'approved';
+            driver.verification.verifiedBy = adminId;
+            driver.verification.verificationDate = now;
+            driver.verification.lastReviewDate = now;
+            driver.verification.rejectionReason = null; // Clear any previous rejection
+
+            // Update driver operational status
+            driver.status = 'Active';
+            driver.availabilityStatus = 'offline'; // Can go online when ready
+
+            // Add to update history
+            if (!driver.verification.updateHistory) {
+                driver.verification.updateHistory = [];
+            }
+            driver.verification.updateHistory.push(historyEntry);
+
+            // Add to submission history
+            driver.verification.submissions.push({
+                submittedAt: pendingUpdate.submittedAt,
+                submissionType: 'update',
+                reviewedBy: adminId,
+                reviewedAt: now,
+                status: 'approved',
+                feedback: feedback || 'Update approved'
+            });
+
+            // Clear pending update
+            driver.verification.pendingUpdate = {
+                exists: false,
+                status: null,
+                submittedAt: null,
+                updateType: null,
+                proposedChanges: {},
+                changesSummary: {},
+                reviewedBy: adminId,
+                reviewedAt: now,
+                reviewFeedback: feedback || 'Update approved',
+                autoExpireAt: null
+            };
+
+            // Calculate compliance score
+            driver.verification.complianceScore = 100;
+
+            await driver.save();
+
+            return {
+                success: true,
+                message: 'Driver update approved successfully. Driver can now operate with updated information.',
+                driver: {
+                    _id: driver._id,
+                    fullName: driver.fullName,
+                    status: driver.status,
+                    verificationStatus: driver.verification.overallStatus,
+                    updateType: pendingUpdate.updateType,
+                    changesApplied: pendingUpdate.changesSummary
+                }
+            };
+
+        } else if (action === 'reject') {
+            // ============================================
+            // REJECT UPDATE
+            // ============================================
+
+            const historyEntry = {
+                updatedAt: now,
+                updateType: pendingUpdate.updateType,
+                status: 'rejected',
+                changesSummary: pendingUpdate.changesSummary,
+                reviewedBy: adminId,
+                reviewedByName: admin.fullName || admin.email,
+                feedback: feedback || 'Update rejected',
+                previousData: null
+            };
+
+            // Add to update history
+            if (!driver.verification.updateHistory) {
+                driver.verification.updateHistory = [];
+            }
+            driver.verification.updateHistory.push(historyEntry);
+
+            // Add to submission history
+            driver.verification.submissions.push({
+                submittedAt: pendingUpdate.submittedAt,
+                submissionType: 'update',
+                reviewedBy: adminId,
+                reviewedAt: now,
+                status: 'rejected',
+                feedback: feedback || 'Update rejected'
+            });
+
+            // Clear pending update
+            driver.verification.pendingUpdate = {
+                exists: false,
+                status: null,
+                submittedAt: null,
+                updateType: null,
+                proposedChanges: {},
+                changesSummary: {},
+                reviewedBy: adminId,
+                reviewedAt: now,
+                reviewFeedback: feedback || 'Update rejected',
+                autoExpireAt: null
+            };
+
+            // KEEP overall status as approved (activeData unchanged)
+            driver.verification.lastReviewDate = now;
+
+            await driver.save();
+
+            return {
+                success: true,
+                message: 'Driver update rejected. Current verification remains active.',
+                driver: {
+                    _id: driver._id,
+                    fullName: driver.fullName,
+                    status: driver.status,
+                    verificationStatus: driver.verification.overallStatus,
+                    updateType: pendingUpdate.updateType,
+                    rejectionReason: feedback
+                }
+            };
+
+        } else {
+            // ============================================
+            // SUSPEND (from update)
+            // ============================================
+
+            // Archive rejection to history
+            const historyEntry = {
+                updatedAt: now,
+                updateType: pendingUpdate.updateType,
+                status: 'rejected',
+                changesSummary: pendingUpdate.changesSummary,
+                reviewedBy: adminId,
+                reviewedByName: admin.fullName || admin.email,
+                feedback: feedback || 'Update rejected - Driver suspended',
+                previousData: null
+            };
+
+            if (!driver.verification.updateHistory) {
+                driver.verification.updateHistory = [];
+            }
+            driver.verification.updateHistory.push(historyEntry);
+
+            // Clear pending update
+            driver.verification.pendingUpdate = {
+                exists: false,
+                status: null,
+                submittedAt: null,
+                updateType: null,
+                proposedChanges: {},
+                changesSummary: {},
+                reviewedBy: adminId,
+                reviewedAt: now,
+                reviewFeedback: feedback || 'Driver suspended',
+                autoExpireAt: null
+            };
+
+            // SUSPEND driver
+            driver.verification.overallStatus = 'suspended';
+            driver.verification.verifiedBy = adminId;
+            driver.verification.lastReviewDate = now;
+            driver.verification.rejectionReason = feedback;
+            driver.status = 'Suspended';
+            driver.availabilityStatus = 'offline';
+            driver.verification.complianceScore = 40;
+
+            await driver.save();
+
+            return {
+                success: true,
+                message: 'Driver suspended. Update rejected and driver account suspended.',
+                driver: {
+                    _id: driver._id,
+                    fullName: driver.fullName,
+                    status: driver.status,
+                    verificationStatus: driver.verification.overallStatus
+                }
+            };
+        }
+    }
+
+    // ============================================
+    // PRIVATE: Handle Initial Submission
+    // ============================================
+    static async _handleInitialApproval(driver, action, newStatus, feedback, adminId, now) {
+        console.log('🆕 Processing INITIAL submission');
+
+        // Update overall verification status
+        driver.verification.overallStatus = newStatus;
+        driver.verification.verifiedBy = adminId;
+        driver.verification.verificationDate = now;
+        driver.verification.lastReviewDate = now;
+
+        if (action === 'approve') {
+            // ============================================
+            // APPROVE INITIAL SUBMISSION
+            // ============================================
+
+            // Populate activeData from basicVerification and specificVerification
+            driver.verification.activeData = {
+                basicVerification: driver.verification.basicVerification,
+                specificVerification: driver.verification.specificVerification,
+                vehicleDetails: driver.vehicleDetails,
+                approvedAt: now,
+                approvedBy: adminId
+            };
+
+            // Update all document statuses in activeData
+            AdminController._updateAllDocumentStatuses(
+                driver.verification.activeData,
+                'approved',
+                adminId,
+                now
+            );
+
+            // Update driver operational status
+            driver.status = 'Active';
+            driver.availabilityStatus = 'online'; // Can go online
+            driver.verification.rejectionReason = null;
+            driver.verification.complianceScore = 100;
+
+        } else if (action === 'reject') {
+            // ============================================
+            // REJECT INITIAL SUBMISSION
+            // ============================================
+
+            driver.verification.rejectionReason = feedback;
+            driver.status = 'Active';
+            driver.availabilityStatus = 'offline'; // Cannot operate
+            driver.verification.complianceScore = 20;
+
+            // Update document statuses in main verification (not activeData)
+            AdminController._updateAllDocumentStatuses(
+                driver.verification,
+                'rejected',
+                adminId,
+                now
+            );
+
+        } else {
+            // ============================================
+            // SUSPEND INITIAL SUBMISSION
+            // ============================================
+
+            driver.verification.rejectionReason = feedback;
+            driver.status = 'Suspended';
+            driver.availabilityStatus = 'offline';
+            driver.verification.complianceScore = 40;
+
+            // Update document statuses
+            AdminController._updateAllDocumentStatuses(
+                driver.verification,
+                'suspended',
+                adminId,
+                now
+            );
+        }
+
+        // Add to submission history
+        driver.verification.submissions.push({
+            submittedAt: now,
+            submissionType: 'initial',
+            reviewedBy: adminId,
+            reviewedAt: now,
+            status: newStatus,
+            feedback: feedback || ''
+        });
+
+        await driver.save();
+
+        return {
+            success: true,
+            message: `Driver verification ${action}d successfully`,
+            driver: {
+                _id: driver._id,
+                fullName: driver.fullName,
+                status: driver.status,
+                verificationStatus: driver.verification.overallStatus
+            }
+        };
+    }
+
+    // ============================================
+    // PRIVATE: Handle Re-verification
+    // ============================================
+    static async _handleReVerification(driver, action, newStatus, feedback, adminId, now) {
+        console.log('🔄 Processing RE-VERIFICATION');
+
+        driver.verification.overallStatus = newStatus;
+        driver.verification.verifiedBy = adminId;
+        driver.verification.lastReviewDate = now;
+
+        if (action === 'approve') {
+            // Update activeData statuses
+            AdminController._updateAllDocumentStatuses(
+                driver.verification.activeData,
+                'approved',
+                adminId,
+                now
+            );
+
+            driver.status = 'Active';
+            driver.availabilityStatus = 'online';
+            driver.verification.rejectionReason = null;
+            driver.verification.complianceScore = 100;
+
+        } else if (action === 'reject') {
+            driver.verification.rejectionReason = feedback;
+            driver.status = 'Active';
+            driver.availabilityStatus = 'offline';
+            driver.verification.complianceScore = 20;
+
+        } else {
+            driver.verification.rejectionReason = feedback;
+            driver.status = 'Suspended';
+            driver.availabilityStatus = 'offline';
+            driver.verification.complianceScore = 40;
+        }
+
+        // Add to submission history
+        driver.verification.submissions.push({
+            submittedAt: now,
+            submissionType: 'resubmission',
+            reviewedBy: adminId,
+            reviewedAt: now,
+            status: newStatus,
+            feedback: feedback || ''
+        });
+
+        await driver.save();
+
+        return {
+            success: true,
+            message: `Driver re-verification ${action}d successfully`,
+            driver: {
+                _id: driver._id,
+                fullName: driver.fullName,
+                status: driver.status,
+                verificationStatus: driver.verification.overallStatus
+            }
+        };
+    }
+
+    // ============================================
+    // PRIVATE: Update All Document Statuses
+    // Comprehensive helper that updates EVERY document field
+    // ============================================
+    static _updateAllDocumentStatuses(verificationData, status, adminId, now) {
+        // Get the nested objects
+        const basicVerification = verificationData.basicVerification || {};
+        const specificVerification = verificationData.specificVerification || {};
+
+        // ============================================
+        // Update Basic Verification Documents
+        // ============================================
+
+        // Identification
+        if (basicVerification.identification) {
+            basicVerification.identification.status = status;
+            basicVerification.identification.verified = status === 'approved';
+            basicVerification.identification.verifiedAt = now;
+            basicVerification.identification.verifiedBy = adminId;
+            if (status === 'rejected' || status === 'suspended') {
+                basicVerification.identification.rejectionReason = 'Part of overall ' + status;
+            } else {
+                basicVerification.identification.rejectionReason = null;
+            }
+        }
+
+        // Passport Photo
+        if (basicVerification.passportPhoto) {
+            basicVerification.passportPhoto.status = status;
+            basicVerification.passportPhoto.verified = status === 'approved';
+            basicVerification.passportPhoto.verifiedAt = now;
+            if (status === 'rejected' || status === 'suspended') {
+                basicVerification.passportPhoto.rejectionReason = 'Part of overall ' + status;
+            } else {
+                basicVerification.passportPhoto.rejectionReason = null;
+            }
+        }
+
+        // Bank Accounts
+        if (Array.isArray(basicVerification.bankAccounts)) {
+            basicVerification.bankAccounts.forEach(account => {
+                account.verified = status === 'approved';
+                account.verifiedAt = now;
+            });
+        }
+
+        // Operational Area
+        if (basicVerification.operationalArea) {
+            basicVerification.operationalArea.verified = status === 'approved';
+            basicVerification.operationalArea.verifiedAt = now;
+        }
+
+        // ============================================
+        // Update Vehicle-Specific Documents
+        // ============================================
+
+        const vehicleType = specificVerification.activeVerificationType;
+        if (vehicleType && specificVerification[vehicleType]) {
+            const vehicleData = specificVerification[vehicleType];
+
+            // Recursive function to update any document object
+            const updateDoc = (doc) => {
+                if (!doc || typeof doc !== 'object') return;
+
+                if (doc.status !== undefined) {
+                    doc.status = status;
+                }
+                if (doc.verified !== undefined) {
+                    doc.verified = status === 'approved';
+                    doc.verifiedAt = now;
+                }
+                if ((status === 'rejected' || status === 'suspended') && doc.rejectionReason !== undefined) {
+                    doc.rejectionReason = 'Part of overall ' + status;
+                }
+
+                // Handle nested objects (like pictures.front, pictures.rear)
+                Object.keys(doc).forEach(key => {
+                    if (typeof doc[key] === 'object' && doc[key] !== null && !Array.isArray(doc[key])) {
+                        updateDoc(doc[key]);
+                    }
+                });
+            };
+
+            // Update all fields in vehicle data
+            Object.keys(vehicleData).forEach(fieldKey => {
+                const field = vehicleData[fieldKey];
+                if (Array.isArray(field)) {
+                    field.forEach(item => updateDoc(item));
+                } else if (typeof field === 'object' && field !== null) {
+                    updateDoc(field);
+                }
+            });
+        }
+
+        console.log('✅ All document statuses updated to:', status);
+    }
+
+// ============================================
+// Helper: Calculate Compliance Score
+// ============================================
+    static calculateComplianceScore(driver, status) {
+        if (status === 'approved') return 100;
+        if (status === 'suspended') return 40;
+        if (status === 'rejected') return 20;
+
+        // Calculate based on completion
+        let score = 0;
+        const basic = driver.verification.basicVerification;
+        const specific = driver.verification.specificVerification;
+
+        if (basic?.isComplete) score += 40;
+        if (specific?.isComplete) score += 40;
+        if (basic?.identification?.verified) score += 10;
+        if (basic?.passportPhoto?.verified) score += 10;
+
+        return Math.min(100, score);
+    }
+
+    // ============================================
+    // ADMIN: Review and Approve/Reject Pending Updates
+    // ============================================
+    static async reviewDriverUpdate(payload) {
+        await dbClient.connect();
+        const { id, action, feedback, adminId } = payload;
+
+        // Validate action
+        if (action !== 'approve' && action !== 'reject') {
+            throw new Error('Invalid action. Use "approve" or "reject"');
+        }
+
+        // Verify admin exists
+        const admin = await Admin.findById(adminId);
+        if (!admin) {
+            throw new Error('Admin not found');
+        }
+
+        // Find driver
+        const { Driver } = await getModels();
+        const driver = await Driver.findById(id);
+        if (!driver) {
+            throw new Error('Driver not found');
+        }
+
+        // Check if there's a pending update
+        if (!driver.verification.pendingUpdate?.exists) {
+            throw new Error('No pending update found for this driver');
+        }
+
+        const pendingUpdate = driver.verification.pendingUpdate;
+        const now = new Date();
+
+        if (action === 'approve') {
+            // ============================================
+            // APPROVE: Move pending to active, archive old active
+            // ============================================
+
+            // Store previous active data in history
+            const historyEntry = {
+                updatedAt: now,
+                updateType: pendingUpdate.updateType,
+                status: 'approved',
+                changesSummary: pendingUpdate.changesSummary,
+                reviewedBy: adminId,
+                reviewedByName: admin.fullName || admin.email,
+                feedback: feedback || 'Update approved',
+                previousData: {
+                    basicVerification: driver.verification.activeData.basicVerification,
+                    specificVerification: driver.verification.activeData.specificVerification,
+                    vehicleDetails: driver.verification.activeData.vehicleDetails
+                }
+            };
+
+            // Replace activeData with proposedChanges
+            driver.verification.activeData = {
+                basicVerification: pendingUpdate.proposedChanges.basicVerification,
+                specificVerification: pendingUpdate.proposedChanges.specificVerification,
+                vehicleDetails: pendingUpdate.proposedChanges.vehicleDetails,
+                approvedAt: now,
+                approvedBy: adminId
+            };
+
+            // Update top-level vehicleDetails for backward compatibility
+            driver.vehicleDetails = pendingUpdate.proposedChanges.vehicleDetails;
+            driver.vehicleType = pendingUpdate.proposedChanges.vehicleDetails?.type;
+
+            // Add to update history
+            if (!driver.verification.updateHistory) {
+                driver.verification.updateHistory = [];
+            }
+            driver.verification.updateHistory.push(historyEntry);
+
+            // Clear pending update
+            driver.verification.pendingUpdate = {
+                exists: false,
+                status: null,
+                submittedAt: null,
+                updateType: null,
+                proposedChanges: {},
+                changesSummary: {},
+                reviewedBy: adminId,
+                reviewedAt: now,
+                reviewFeedback: feedback || 'Update approved',
+                autoExpireAt: null
+            };
+
+            // Update verification status and dates
+            driver.verification.lastReviewDate = now;
+            driver.verification.verifiedBy = adminId;
+
+            // Recalculate compliance score
+            driver.verification.complianceScore = AdminController.calculateComplianceScore(driver, 'approved');
+
+            await driver.save();
+            console.log('Approve action completed')
+
+            // TODO: Send approval notification to driver
+            // TODO: Log admin action in audit trail
+
+            return {
+                success: true,
+                message: 'Driver update approved successfully',
+                driver: {
+                    _id: driver._id,
+                    fullName: driver.fullName,
+                    updateType: pendingUpdate.updateType,
+                    changesApplied: pendingUpdate.changesSummary
+                }
+            };
+
+        } else {
+            // ============================================
+            // REJECT: Archive to history, clear pending, keep active unchanged
+            // ============================================
+
+            const historyEntry = {
+                updatedAt: now,
+                updateType: pendingUpdate.updateType,
+                status: 'rejected',
+                changesSummary: pendingUpdate.changesSummary,
+                reviewedBy: adminId,
+                reviewedByName: admin.fullName || admin.email,
+                feedback: feedback || 'Update rejected',
+                previousData: null // No previous data since changes weren't applied
+            };
+
+            // Add to update history
+            if (!driver.verification.updateHistory) {
+                driver.verification.updateHistory = [];
+            }
+            driver.verification.updateHistory.push(historyEntry);
+
+            // Clear pending update
+            driver.verification.pendingUpdate = {
+                exists: false,
+                status: null,
+                submittedAt: null,
+                updateType: null,
+                proposedChanges: {},
+                changesSummary: {},
+                reviewedBy: adminId,
+                reviewedAt: now,
+                reviewFeedback: feedback || 'Update rejected',
+                autoExpireAt: null
+            };
+
+            driver.verification.lastReviewDate = now;
+
+            await driver.save();
+
+            // TODO: Send rejection notification to driver with feedback
+            // TODO: Log admin action in audit trail
+
+            return {
+                success: true,
+                message: 'Driver update rejected',
+                driver: {
+                    _id: driver._id,
+                    fullName: driver.fullName,
+                    updateType: pendingUpdate.updateType,
+                    rejectionReason: feedback
+                }
+            };
+        }
+    }
+
+    // ============================================
+    // Helper to update individual document statuses
+    // ============================================
+    static updateIndividualDocumentStatuses(verificationData, overallStatus, adminId) {
+        const now = new Date();
+
+        // Determine which object to update (could be activeData or main verification)
+        const basicVerification = verificationData.basicVerification || verificationData;
+        const specificVerification = verificationData.specificVerification || verificationData;
+
+        // Update basic verification documents
+        if (basicVerification) {
+            // Identification
+            if (basicVerification.identification) {
+                basicVerification.identification.status = overallStatus;
+                basicVerification.identification.verified = overallStatus === 'approved';
+                basicVerification.identification.verifiedAt = now;
+                basicVerification.identification.verifiedBy = adminId;
+                if (overallStatus === 'rejected') {
+                    basicVerification.identification.rejectionReason = 'Part of overall rejection';
+                }
+            }
+
+            // Passport photo
+            if (basicVerification.passportPhoto) {
+                basicVerification.passportPhoto.status = overallStatus;
+                basicVerification.passportPhoto.verified = overallStatus === 'approved';
+                basicVerification.passportPhoto.verifiedAt = now;
+                if (overallStatus === 'rejected') {
+                    basicVerification.passportPhoto.rejectionReason = 'Part of overall rejection';
+                }
+            }
+
+            // Bank accounts
+            if (basicVerification.bankAccounts) {
+                basicVerification.bankAccounts.forEach(account => {
+                    account.verified = overallStatus === 'approved';
+                    account.verifiedAt = now;
+                });
+            }
+
+            // Operational area
+            if (basicVerification.operationalArea) {
+                basicVerification.operationalArea.verified = overallStatus === 'approved';
+                basicVerification.operationalArea.verifiedAt = now;
+            }
+        }
+
+        // Update vehicle-specific verification
+        const vehicleType = specificVerification?.activeVerificationType;
+        if (vehicleType && specificVerification[vehicleType]) {
+            const vehicleData = specificVerification[vehicleType];
+
+            // Generic function to update nested document status
+            const updateDocumentStatus = (doc) => {
+                if (doc && typeof doc === 'object') {
+                    if (doc.status !== undefined) {
+                        doc.status = overallStatus;
+                    }
+                    if (doc.verified !== undefined) {
+                        doc.verified = overallStatus === 'approved';
+                        doc.verifiedAt = now;
+                    }
+                }
+            };
+
+            // Update all document fields in vehicle data
+            Object.values(vehicleData).forEach(field => {
+                if (field && typeof field === 'object') {
+                    if (Array.isArray(field)) {
+                        field.forEach(updateDocumentStatus);
+                    } else {
+                        updateDocumentStatus(field);
+                    }
+                }
+            });
+        }
+    }
+
+
+
+
+
+
+    // In your AdminController
+    static async oldUpdateDriverValidation(payload) {
         await dbClient.connect();
         const {id, action, feedback, adminId} = payload;
 
@@ -1936,7 +2771,7 @@ class AdminController {
     }
 
     // Helper to update individual document statuses
-    static updateIndividualDocumentStatuses(driver, overallStatus, adminId) {
+    static oldUpdateIndividualDocumentStatuses(driver, overallStatus, adminId) {
         const now = new Date();
 
         // Update basic verification documents
@@ -2009,7 +2844,7 @@ class AdminController {
     }
 
     // Helper to calculate compliance score
-    static calculateComplianceScore(driver, status) {
+    static oldCalculateComplianceScore(driver, status) {
         if (status === 'approved') {
             return 100; // Fully compliant
         } else if (status === 'suspended') {
@@ -2463,7 +3298,7 @@ class AdminController {
             return JSON.parse(JSON.stringify(result));
 
         } catch (err) {
-            console.error('Notification fetch error:', err);
+            console.log('Notification fetch error:', err);
             throw new Error('Failed to fetch notifications data');
         }
     }
@@ -2901,7 +3736,7 @@ class AdminController {
             return JSON.parse(JSON.stringify(result));
 
         } catch (err) {
-            console.error('Notification fetch error:', err);
+            console.log('Notification fetch error:', err);
             throw new Error('Failed to fetch notifications data');
         }
     }
@@ -3116,7 +3951,7 @@ class AdminController {
             };
 
         } catch (err) {
-            console.error('Mark as read error:', err);
+            console.log('Mark as read error:', err);
             return {
                 success: false,
                 error: err.message
@@ -3161,7 +3996,7 @@ class AdminController {
             };
 
         } catch (err) {
-            console.error('Mark all as read error:', err);
+            console.log('Mark all as read error:', err);
             return {
                 success: false,
                 error: err.message
@@ -3233,7 +4068,7 @@ class AdminController {
                             break;
                     }
                 } catch (err) {
-                    console.error(`Error fetching related entity (${entityType}):`, err);
+                    console.log(`Error fetching related entity (${entityType}):`, err);
                 }
             }
 
@@ -3287,7 +4122,7 @@ class AdminController {
             return JSON.parse(JSON.stringify(result));
 
         } catch (err) {
-            console.error('Get notification data error:', err);
+            console.log('Get notification data error:', err);
             throw new Error('Failed to fetch notification data');
         }
     }
@@ -3363,7 +4198,7 @@ class AdminController {
             };
 
         } catch (err) {
-            console.error('Delete notification error:', err);
+            console.log('Delete notification error:', err);
             return {
                 success: false,
                 error: err.message
@@ -3414,7 +4249,7 @@ class AdminController {
             };
 
         } catch (err) {
-            console.error('Restore notification error:', err);
+            console.log('Restore notification error:', err);
             return {
                 success: false,
                 error: err.message
@@ -3451,7 +4286,7 @@ class AdminController {
                 notification
             });
         } catch (err) {
-            console.error('Mark as read error:', err);
+            console.log('Mark as read error:', err);
             throw new Error('Failed to mark notification as read');
         }
     }
@@ -3466,7 +4301,7 @@ class AdminController {
             await NotificationService.markAllAsRead(id, category);
             return ({success: 'All notifications marked as read'});
         } catch (err) {
-            console.error('Mark all as read error:', err);
+            console.log('Mark all as read error:', err);
             throw new Error('Failed to mark all notifications as read');
         }
     }
@@ -3495,7 +4330,7 @@ class AdminController {
     //
     //         return ({ message: 'Notification deleted' });
     //     } catch (err) {
-    //         console.error('Delete notification error:', err);
+    //         console.log('Delete notification error:', err);
     //         return res.status(500).json({ error: 'Failed to delete notification' });
     //     }
     // }
@@ -3509,7 +4344,7 @@ class AdminController {
             await NotificationService.deleteAllNotifications(payload.userId);
             return ({message: 'All notifications deleted'});
         } catch (err) {
-            console.error('Delete all notifications error:', err);
+            console.log('Delete all notifications error:', err);
             throw new Error('Failed to delete all notifications');
         }
     }
@@ -3543,7 +4378,7 @@ class AdminController {
 
             return ({message: 'Notifications permanently deleted'});
         } catch (err) {
-            console.error('Permanent delete error:', err);
+            console.log('Permanent delete error:', err);
             throw Error('Failed to permanently delete notifications');
         }
     }
@@ -3589,7 +4424,7 @@ class AdminController {
                 recentActivity
             });
         } catch (err) {
-            console.error('Get statistics error:', err);
+            console.log('Get statistics error:', err);
             return ({error: 'Failed to fetch statistics'});
         }
     }
@@ -3632,8 +4467,362 @@ class AdminController {
                 notification
             });
         } catch (err) {
-            console.error('Create notification error:', err);
+            console.log('Create notification error:', err);
             return res.status(500).json({error: 'Failed to create notification'});
+        }
+    }
+
+    // Finance
+
+    // Add these methods to your AdminController class
+
+    static async initialFinancialData(params = {}) {
+        const {
+            page = 1,
+            limit = 100,
+            sortBy = 'createdAt',
+            sortOrder = 'desc',
+            search = '',
+            transactionType = '',
+            status = '',
+            startDate = '',
+            endDate = ''
+        } = params;
+
+        try {
+            await dbClient.connect();
+            const { FinancialTransaction } = await getFinancialModels();
+
+            const skip = (page - 1) * limit;
+
+            // Build search and filter pipeline
+            const matchStage = {};
+
+            // Search functionality
+            if (search && search.trim()) {
+                matchStage.$or = [
+                    { 'gateway.reference': { $regex: search.trim(), $options: 'i' } },
+                    { 'metadata.description': { $regex: search.trim(), $options: 'i' } },
+                    { 'payout.paystackTransferRef': { $regex: search.trim(), $options: 'i' } },
+                    { 'payout.oPayTransferRef': { $regex: search.trim(), $options: 'i' } }
+                ];
+            }
+
+            // Transaction type filter
+            if (transactionType && transactionType !== 'all') {
+                matchStage.transactionType = transactionType;
+            }
+
+            // Status filter
+            if (status && status !== 'all') {
+                matchStage.status = status;
+            }
+
+            // Date range filter
+            if (startDate || endDate) {
+                matchStage.createdAt = {};
+                if (startDate) matchStage.createdAt.$gte = new Date(startDate);
+                if (endDate) matchStage.createdAt.$lte = new Date(endDate);
+            }
+
+            // Build aggregation pipeline
+            const pipeline = [
+                ...(Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : []),
+                {
+                    $lookup: {
+                        from: 'bases',
+                        localField: 'clientId',
+                        foreignField: '_id',
+                        as: 'clientInfo'
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'bases',
+                        localField: 'driverId',
+                        foreignField: '_id',
+                        as: 'driverInfo'
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'orders',
+                        localField: 'orderId',
+                        foreignField: '_id',
+                        as: 'orderInfo'
+                    }
+                },
+                {
+                    $addFields: {
+                        clientInfo: { $arrayElemAt: ['$clientInfo', 0] },
+                        driverInfo: { $arrayElemAt: ['$driverInfo', 0] },
+                        orderInfo: { $arrayElemAt: ['$orderInfo', 0] }
+                    }
+                }
+            ];
+
+            // Get total count
+            const countPipeline = [...pipeline, { $count: 'total' }];
+            const [countResult] = await FinancialTransaction.aggregate(countPipeline);
+            const totalFilteredTransactions = countResult?.total || 0;
+
+            // Add sorting and pagination
+            pipeline.push(
+                {
+                    $sort: {
+                        [sortBy]: sortOrder === 'desc' ? -1 : 1,
+                        createdAt: -1
+                    }
+                },
+                { $skip: skip },
+                { $limit: limit },
+                {
+                    $project: {
+                        'clientInfo.password': 0,
+                        'clientInfo.deviceTokens': 0,
+                        'driverInfo.password': 0,
+                        'driverInfo.deviceTokens': 0,
+                        'gateway.authorizationCode': 0
+                    }
+                }
+            );
+
+            const transactions = await FinancialTransaction.aggregate(pipeline);
+
+            // Calculate statistics
+            const statsResult = await FinancialTransaction.aggregate([
+                {
+                    $facet: {
+                        overview: [
+                            {
+                                $group: {
+                                    _id: null,
+                                    totalTransactions: { $sum: 1 },
+                                    totalVolume: { $sum: '$amount.gross' },
+                                    totalFees: { $sum: '$amount.fees' },
+                                    totalNet: { $sum: '$amount.net' }
+                                }
+                            }
+                        ],
+                        byType: [
+                            {
+                                $group: {
+                                    _id: '$transactionType',
+                                    count: { $sum: 1 },
+                                    totalAmount: { $sum: '$amount.net' }
+                                }
+                            }
+                        ],
+                        byStatus: [
+                            {
+                                $group: {
+                                    _id: '$status',
+                                    count: { $sum: 1 }
+                                }
+                            }
+                        ],
+                        revenue: [
+                            {
+                                $match: {
+                                    transactionType: 'platform_revenue',
+                                    status: 'completed'
+                                }
+                            },
+                            {
+                                $group: {
+                                    _id: null,
+                                    totalRevenue: { $sum: '$amount.net' }
+                                }
+                            }
+                        ],
+                        clientPayments: [
+                            {
+                                $match: {
+                                    transactionType: 'client_payment',
+                                    status: 'completed'
+                                }
+                            },
+                            {
+                                $group: {
+                                    _id: null,
+                                    total: { $sum: '$amount.gross' },
+                                    count: { $sum: 1 }
+                                }
+                            }
+                        ],
+                        driverEarnings: [
+                            {
+                                $match: {
+                                    transactionType: 'driver_earning',
+                                    status: 'completed'
+                                }
+                            },
+                            {
+                                $group: {
+                                    _id: null,
+                                    total: { $sum: '$amount.net' },
+                                    count: { $sum: 1 }
+                                }
+                            }
+                        ],
+                        driverPayout: [
+                            {
+                                $match: {
+                                    transactionType: 'driver_payout',
+                                    status: 'completed'
+                                }
+                            },
+                            {
+                                $group: {
+                                    _id: null,
+                                    total: { $sum: '$amount.gross' },
+                                    count: { $sum: 1 }
+                                }
+                            }
+                        ],
+                        pendingPayouts: [
+                            {
+                                $match: {
+                                    transactionType: 'driver_payout',
+                                    status: { $in: ['pending', 'processing'] }
+                                }
+                            },
+                            {
+                                $group: {
+                                    _id: null,
+                                    total: { $sum: '$amount.gross' },
+                                    count: { $sum: 1 }
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]);
+
+            const stats = statsResult[0];
+            const byTypeMap = {};
+            const byStatusMap = {};
+
+            stats.byType.forEach(item => {
+                byTypeMap[item._id] = {
+                    count: item.count,
+                    amount: item.totalAmount
+                };
+            });
+
+            stats.byStatus.forEach(item => {
+                byStatusMap[item._id] = item.count;
+            });
+
+            const totalStatistics = {
+                overview: stats.overview[0] || {
+                    totalTransactions: 0,
+                    totalVolume: 0,
+                    totalFees: 0,
+                    totalNet: 0
+                },
+                platformRevenue: stats.revenue[0]?.totalRevenue || 0,
+                clientPayments: {
+                    total: stats.clientPayments[0]?.total || 0,
+                    count: stats.clientPayments[0]?.count || 0
+                },
+                driverEarnings: {
+                    total: stats.driverEarnings[0]?.total || 0,
+                    count: stats.driverEarnings[0]?.count || 0
+                },
+                driverPayout: {
+                    total: stats.driverPayout[0]?.total || 0,
+                    count: stats.driverPayout[0]?.count || 0
+                },
+                pendingPayouts: {
+                    total: stats.pendingPayouts[0]?.total || 0,
+                    count: stats.pendingPayouts[0]?.count || 0
+                },
+                byType: byTypeMap,
+                byStatus: byStatusMap
+            };
+
+            const result = {
+                initialTransactionData: transactions,
+                totalStatistics,
+                pagination: {
+                    page,
+                    limit,
+                    totalPages: Math.ceil(totalFilteredTransactions / limit),
+                    totalResults: totalFilteredTransactions,
+                    hasNextPage: page < Math.ceil(totalFilteredTransactions / limit),
+                    hasPrevPage: page > 1
+                }
+            };
+
+            return JSON.parse(JSON.stringify(result));
+
+        } catch (err) {
+            console.log('Financial data fetch error:', err);
+            throw new Error('Failed to fetch financial data');
+        }
+    }
+
+    static async getFinancialDataById(txId) {
+
+        try {
+            await dbClient.connect();
+            const { FinancialTransaction } = await getFinancialModels();
+
+            const transaction = await FinancialTransaction.aggregate([
+                {
+                    $match: { _id: new mongoose.Types.ObjectId(txId) }
+                },
+                {
+                    $lookup: {
+                        from: 'bases',
+                        localField: 'clientId',
+                        foreignField: '_id',
+                        as: 'clientInfo'
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'bases',
+                        localField: 'driverId',
+                        foreignField: '_id',
+                        as: 'driverInfo'
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'orders',
+                        localField: 'orderId',
+                        foreignField: '_id',
+                        as: 'orderInfo'
+                    }
+                },
+                {
+                    $addFields: {
+                        clientInfo: { $arrayElemAt: ['$clientInfo', 0] },
+                        driverInfo: { $arrayElemAt: ['$driverInfo', 0] },
+                        orderInfo: { $arrayElemAt: ['$orderInfo', 0] }
+                    }
+                },
+                {
+                    $project: {
+                        'clientInfo.password': 0,
+                        'clientInfo.deviceTokens': 0,
+                        'driverInfo.password': 0,
+                        'driverInfo.deviceTokens': 0
+                    }
+                }
+            ]);
+
+            if (!transaction || transaction.length === 0) {
+                throw new Error('Transaction not found');
+            }
+
+            return JSON.parse(JSON.stringify(transaction[0]));
+
+        } catch (err) {
+            console.log('Transaction fetch error:', err);
+            throw new Error('Failed to fetch transaction details');
         }
     }
 }

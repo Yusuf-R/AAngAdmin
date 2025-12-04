@@ -796,6 +796,81 @@ class AdminUtils {
         }
     }
 
+    // Finance API calls
+
+    // Add these methods to your AdminUtils class
+
+    static async getFinancialTransactions(params) {
+        try {
+            const response = await axiosPrivate({
+                method: 'GET',
+                url: `/admin/finance`,
+                params: params
+            })
+            return response.data;
+        } catch (error) {
+            console.error('Get financial transactions error:', error);
+            return {success: false, error: error.message};
+        }
+    }
+
+    static async getFinancialTransactionById(txId) {
+        try {
+            const response = await axiosPrivate({
+                method: 'GET',
+                url: "/admin/finance/get",
+                params: txId
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Get financial transaction by id error:', error);
+            throw error;
+        }
+    }
+
+    static async verifyPaystackTransaction(reference) {
+        try {
+            const response = await axiosPrivate({
+                method: 'POST',
+                url: `/admin/finance/verify`,
+                data: reference
+            });
+
+            return response.data;
+        } catch (error) {
+            console.error('Verify transaction error:', error);
+            throw error;
+        }
+    }
+
+    static async exportFinancialData(params) {
+        try {
+
+            const response = await axiosPrivate({
+                method: 'GET',
+                url: `/admin/finance/export`,
+                params: params
+            });
+
+            // Download the file
+            const blob = await response.data.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `financial_report_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            return { success: true };
+        } catch (error) {
+            console.error('Export financial data error:', error);
+            throw error;
+        }
+    }
+
 }
 
 export default AdminUtils;

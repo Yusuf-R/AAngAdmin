@@ -122,7 +122,28 @@ const ClientSchema = new Schema({
         balance: {type: Number, default: 0},
         totalSpent: {type: Number, default: 0},
         lifetimeValue: {type: Number, default: 0},
-        lastTransactionDate: Date
+        lastTransactionDate: Date,
+
+        // Banking Details
+        bankDetails: {
+            accountName: String,
+            accountNumber: String,
+            bankName: String,
+            bankCode: String,
+            verified: {type: Boolean, default: false},
+            verificationDate: Date,
+            verifiedBy: {type: Schema.Types.ObjectId, ref: 'Admin'}
+        },
+
+        // Transaction History (last 50)
+        recentTransactions: [{
+            type: {type: String, enum: ['earning', 'payment', 'bonus', 'penalty', 'refund']},
+            amount: Number,
+            description: String,
+            orderId: {type: Schema.Types.ObjectId, ref: 'Order'},
+            timestamp: {type: Date, default: Date.now},
+            reference: String
+        }]
     },
 
     // Usage Statistics
@@ -266,6 +287,86 @@ const DriverSchema = new Schema({
             enum: ["incomplete", "pending",  "submitted", "approved", "rejected", "suspended", "expired"],
             default: "pending"
         },
+
+        activeData: {
+            basicVerification: {
+                identification: { type: Schema.Types.Mixed },
+                passportPhoto: { type: Schema.Types.Mixed },
+                operationalArea: { type: Schema.Types.Mixed },
+                bankAccounts: [{ type: Schema.Types.Mixed }],
+                isComplete: Boolean,
+                completedAt: Date
+            },
+            specificVerification: {
+                type: Schema.Types.Mixed, // Flexible for different vehicle types
+                activeVerificationType: String,
+                isComplete: Boolean,
+                completedAt: Date
+            },
+            vehicleDetails: {
+                type: { type: String, enum: ['bicycle', 'motorcycle', 'tricycle', 'van', 'truck', 'car'] },
+                plateNumber: String,
+                model: String,
+                year: Number,
+                color: String,
+                capacity: Schema.Types.Mixed
+            },
+            approvedAt: Date,
+            approvedBy: { type: Schema.Types.ObjectId, ref: 'Admin' }
+        },
+
+        pendingUpdate: {
+            exists: { type: Boolean, default: false },
+            status: {
+                type: String,
+                enum: ['pending_review', 'under_review', null],
+                default: null
+            },
+            submittedAt: Date,
+            updateType: {
+                type: String,
+                enum: ['vehicle_upgrade', 'vehicle_downgrade', 'location_change',
+                    'document_renewal', 'bank_account_change', 'comprehensive_update']
+            },
+
+            proposedChanges: {
+                basicVerification: { type: Schema.Types.Mixed },
+                specificVerification: { type: Schema.Types.Mixed },
+                vehicleDetails: { type: Schema.Types.Mixed }
+            },
+
+            changesSummary: {
+                vehicleTypeChange: {
+                    from: String,
+                    to: String
+                },
+                locationChange: {
+                    from: { state: String, lga: String },
+                    to: { state: String, lga: String }
+                },
+                documentsUpdated: [String],
+                bankAccountsChanged: Boolean,
+                identificationChanged: Boolean,
+                totalChanges: Number
+            },
+
+            reviewedBy: { type: Schema.Types.ObjectId, ref: 'Admin' },
+            reviewedAt: Date,
+            reviewFeedback: String,
+            autoExpireAt: Date
+        },
+
+        updateHistory: [{
+            updatedAt: { type: Date, default: Date.now },
+            updateType: String,
+            status: { type: String, enum: ['approved', 'rejected'] },
+            changesSummary: Schema.Types.Mixed,
+            reviewedBy: { type: Schema.Types.ObjectId, ref: 'Admin' },
+            reviewedByName: String,
+            feedback: String,
+            previousData: Schema.Types.Mixed
+        }],
+
         verifiedBy: { type: Schema.Types.ObjectId, ref: 'Admin' },
         verificationDate: Date,
         lastReviewDate: Date,
@@ -1170,7 +1271,6 @@ DriverSchema.index({ 'verification.overallStatus': 1 });
 DriverSchema.index({ 'verification.basicVerification.isComplete': 1 });
 DriverSchema.index({ 'verification.specificVerification.isComplete': 1 });
 
-
 // Admin schema indexes
 AdminSchema.index({  adminRole: 1, status: 1 });
 AdminSchema.index({ "security.ipWhitelist.ip": 1 });
@@ -1264,6 +1364,27 @@ AdminSchema.pre('save', function(next) {
     }
 
     next();
+});
+
+// Post-save middleware for driver analytics
+DriverSchema.post('save', async function(doc) {
+    // Initialize analytics for new driver
+    if (this.isNew) {
+        try {
+            await analyticsUpdater.initializeDriverAnalytics(doc._id, {
+                createdAt: doc.createdAt,
+                vehicleType: doc.vehicleDetails?.type
+            });
+            console.log(`Analytics initialized for new driver: ${doc._id}`);
+        } catch (error) {
+            console.error('Error initializing driver analytics:', error);
+        }
+    }
+
+    // Update status when driver goes online/offline
+    if (doc.isModified('availabilityStatus')) {
+        await analyticsUpdater.updateDriverStatus(doc._id, doc.availabilityStatus);
+    }
 });
 
 // Static methods for common operations

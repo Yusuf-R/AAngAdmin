@@ -43,7 +43,7 @@ function SideNav({navState, activeRoute = "/", adminData}) {
         {icon: Home, label: "Dashboard", path: "/admin/dashboard"},
         {icon: Users, label: "Users", path: "/admin/users"},
         {icon: Box, label: "Orders", path: "/admin/orders"},
-        {icon: HandCoins, label: "Payments", path: "/admin/payment"},
+        {icon: HandCoins, label: "Finance", path: "/admin/finance"},
         {icon: UserRoundPen, label: "Profile", path: "/admin/profile"},
         {icon: Bell, label: "Notifications", path: "/admin/notifications", badge: adminActionCount},
         {icon: Waypoints, label: "Support", path: "/admin/support"},

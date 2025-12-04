@@ -122,7 +122,119 @@ const PricingSchema = new Schema({
         reason: String
     },
     totalAmount: {type: Number, required: true},
-    currency: {type: String, default: 'NGN'}
+    currency: {type: String, default: 'NGN'},
+
+    pricingBreakdown: {
+        // Base calculations
+        baseCalculation: {
+            vehicleType: String,
+            distance: Number,
+            baseFare: Number,
+            distanceRate: Number,
+            distanceFare: Number,
+            totalBase: Number
+        },
+
+        // Weight calculation
+        weightCalculation: {
+            packageWeight: Number,
+            freeLimit: Number,
+            excessWeight: Number,
+            excessRate: Number,
+            surcharge: Number
+        },
+
+        // Priority calculation
+        priorityCalculation: {
+            level: String,
+            multiplier: Number,
+            adjustment: Number,
+            adjustedTotal: Number
+        },
+
+        // Surcharges breakdown
+        surchargesBreakdown: {
+            packageSurcharges: [{
+                type: String,
+                amount: Number,
+                reason: String
+            }],
+            locationSurcharges: [{
+                type: String,
+                amount: Number,
+                reason: String
+            }],
+            totalSurcharges: Number
+        },
+
+        // Insurance calculation
+        insuranceCalculation: {
+            isInsured: Boolean,
+            declaredValue: Number,
+            rate: Number,
+            premium: Number,
+            isHighValue: Boolean
+        },
+
+        // Discount calculation
+        discountCalculation: {
+            code: String,
+            type: String, // percentage, fixed
+            value: Number,
+            amount: Number,
+            reason: String
+        },
+
+        // Tax calculation
+        taxCalculation: {
+            taxableAmount: Number,
+            vatRate: Number,
+            vatAmount: Number
+        },
+
+        // Payment processing fees
+        paymentFees: {
+            customerAmount: Number, // What customer pays
+            processingFee: Number,  // Paystack's cut
+            netAmount: Number,      // What you receive
+            effectiveFlatFee: Number,
+            feeBreakdown: String
+        },
+
+        // Revenue distribution (CRITICAL for financial tracking)
+        revenueDistribution: {
+            deliveryTotal: Number,      // Net amount you receive
+            driverShare: Number,        // 70% of deliveryTotal
+            platformShare: Number,      // 30% of deliveryTotal
+            driverPercentage: { type: Number, default: 70 },
+            platformPercentage: { type: Number, default: 30 }
+        },
+
+        // Final summary
+        finalSummary: {
+            subtotal: Number,
+            totalDiscount: Number,
+            taxableAmount: Number,
+            totalTax: Number,
+            deliveryTotal: Number,
+            customerAmount: Number,
+            processingFees: Number,
+            netReceived: Number
+        },
+
+        // Metadata
+        calculatedAt: { type: Date, default: Date.now },
+        pricingEngineVersion: String,
+        calculationId: String // For audit trail
+    },
+
+    // NEW: Financial tracking references
+    financialReferences: {
+        paymentTransactionId: { type: Schema.Types.ObjectId, ref: 'FinancialTransaction' },
+        driverEarningTransactionId: { type: Schema.Types.ObjectId, ref: 'FinancialTransaction' },
+        platformRevenueTransactionId: { type: Schema.Types.ObjectId, ref: 'FinancialTransaction' },
+        payoutTransactionIds: [{ type: Schema.Types.ObjectId, ref: 'FinancialTransaction' }]
+    }
 }, {_id: false, strictPopulate: false});
 
 // Timeline/Status History Schema for orderCreation updates till payments
@@ -335,8 +447,39 @@ const OrderSchema = new Schema({
         paystackData: {
             type: Schema.Types.Mixed, // Flexible object structure
             default: null
+        },
+        clientPaymentTransactionId: {
+            type: Schema.Types.ObjectId,
+            ref: 'FinancialTransaction'
+        },
+
+        // NEW: Financial breakdown for reference
+        financialBreakdown: {
+            grossAmount: Number,
+            paystackFee: Number,
+            netAmount: Number,
+            driverShare: Number,      // 70% of net
+            platformShare: Number,    // 30% of net
+            currency: String
         }
     },
+
+    revenueDistribution: {
+        driverShare: Number,
+        platformShare: Number,
+        driverTransactionId: Schema.Types.ObjectId,
+        platformTransactionId: Schema.Types.ObjectId,
+        distributedAt: Date
+    },
+
+    refund: {
+        amount: Number,
+        reason: String,
+        transactionId: Schema.Types.ObjectId,
+        processedAt: Date,
+        approvedBy: Schema.Types.ObjectId
+    },
+
     deliveryWindow: {
         start: Date,
         end: Date
@@ -425,7 +568,7 @@ const OrderSchema = new Schema({
             stars: {type: Number, min: 1, max: 5},
             feedback: String,
             categories: [{  // NEW
-                category: {type: String, enum: ['communication', 'package_condition', 'location_accuracy', 'payment']},
+                category: {type: String, enum: ['communication', 'package_condition', 'location_accuracy', 'logistics']},
                 rating: {type: Number, min: 1, max: 5}
             }],
             wouldRecommend: {type: Boolean},  // NEW
@@ -534,6 +677,32 @@ OrderSchema.pre('save', function (next) {
     }
     next();
 });
+
+OrderSchema.post('save', async function(doc) {
+    // Update analytics when order is completed
+    if (doc.status === 'delivered' && doc.isModified('status')) {
+        await orderAnalyticsMiddleware(doc);
+    }
+
+    // Update analytics when rating is added
+    if (doc.rating?.clientRating?.stars && doc.isModified('rating.clientRating')) {
+        await ratingAnalyticsMiddleware(doc);
+    }
+});
+
+// Add post-findOneAndUpdate middleware
+OrderSchema.post('findOneAndUpdate', async function(doc) {
+    if (doc) {
+        if (doc.status === 'delivered') {
+            await orderAnalyticsMiddleware(doc);
+        }
+
+        if (doc.rating?.clientRating?.stars) {
+            await ratingAnalyticsMiddleware(doc);
+        }
+    }
+});
+
 
 // Static methods
 OrderSchema.statics.findActiveOrders = function () {
